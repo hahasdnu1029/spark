@@ -17,19 +17,16 @@
 
 package org.apache.spark.sql.execution
 
-import scala.collection.mutable.ArrayBuffer
-
 import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop.fs.{BlockLocation, FileStatus, LocatedFileStatus, Path}
-
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.catalyst.{InternalRow, TableIdentifier}
 import org.apache.spark.sql.catalyst.catalog.BucketSpec
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.expressions.codegen.CodegenContext
 import org.apache.spark.sql.catalyst.plans.QueryPlan
 import org.apache.spark.sql.catalyst.plans.physical.{HashPartitioning, Partitioning, UnknownPartitioning}
+import org.apache.spark.sql.catalyst.{InternalRow, TableIdentifier}
 import org.apache.spark.sql.execution.datasources._
 import org.apache.spark.sql.execution.datasources.parquet.{ParquetFileFormat => ParquetSource}
 import org.apache.spark.sql.execution.metric.SQLMetrics
@@ -37,6 +34,8 @@ import org.apache.spark.sql.sources.{BaseRelation, Filter}
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.util.Utils
 import org.apache.spark.util.collection.BitSet
+
+import scala.collection.mutable.ArrayBuffer
 
 trait DataSourceScanExec extends LeafExecNode with CodegenSupport {
   val relation: BaseRelation
@@ -67,8 +66,8 @@ trait DataSourceScanExec extends LeafExecNode with CodegenSupport {
   }
 
   /**
-   * Shorthand for calling redactString() without specifying redacting rules
-   */
+    * Shorthand for calling redactString() without specifying redacting rules
+    */
   private def redact(text: String): String = {
     Utils.redact(sqlContext.sessionState.conf.stringRedactionPattern, text)
   }
@@ -76,13 +75,13 @@ trait DataSourceScanExec extends LeafExecNode with CodegenSupport {
 
 /** Physical plan node for scanning data from a relation. */
 case class RowDataSourceScanExec(
-    fullOutput: Seq[Attribute],
-    requiredColumnsIndex: Seq[Int],
-    filters: Set[Filter],
-    handledFilters: Set[Filter],
-    rdd: RDD[InternalRow],
-    @transient relation: BaseRelation,
-    override val tableIdentifier: Option[TableIdentifier])
+                                  fullOutput: Seq[Attribute],
+                                  requiredColumnsIndex: Seq[Int],
+                                  filters: Set[Filter],
+                                  handledFilters: Set[Filter],
+                                  rdd: RDD[InternalRow],
+                                  @transient relation: BaseRelation,
+                                  override val tableIdentifier: Option[TableIdentifier])
   extends DataSourceScanExec {
 
   def output: Seq[Attribute] = requiredColumnsIndex.map(fullOutput)
@@ -96,7 +95,7 @@ case class RowDataSourceScanExec(
     rdd.mapPartitionsWithIndexInternal { (index, iter) =>
       val proj = UnsafeProjection.create(schema)
       proj.initialize(index)
-      iter.map( r => {
+      iter.map(r => {
         numOutputRows += 1
         proj(r)
       })
@@ -111,7 +110,7 @@ case class RowDataSourceScanExec(
     val numOutputRows = metricTerm(ctx, "numOutputRows")
     // PhysicalRDD always just has one input
     val input = ctx.addMutableState("scala.collection.Iterator", "input", v => s"$v = inputs[0];")
-    val exprRows = output.zipWithIndex.map{ case (a, i) =>
+    val exprRows = output.zipWithIndex.map { case (a, i) =>
       BoundReference(i, a.dataType, a.nullable)
     }
     val row = ctx.freshName("row")
@@ -146,25 +145,25 @@ case class RowDataSourceScanExec(
 }
 
 /**
- * Physical plan node for scanning data from HadoopFsRelations.
- *
- * @param relation The file-based relation to scan.
- * @param output Output attributes of the scan, including data attributes and partition attributes.
- * @param requiredSchema Required schema of the underlying relation, excluding partition columns.
- * @param partitionFilters Predicates to use for partition pruning.
- * @param optionalBucketSet Bucket ids for bucket pruning
- * @param dataFilters Filters on non-partition columns.
- * @param tableIdentifier identifier for the table in the metastore.
- */
+  * Physical plan node for scanning data from HadoopFsRelations.
+  *
+  * @param relation          The file-based relation to scan.
+  * @param output            Output attributes of the scan, including data attributes and partition attributes.
+  * @param requiredSchema    Required schema of the underlying relation, excluding partition columns.
+  * @param partitionFilters  Predicates to use for partition pruning.
+  * @param optionalBucketSet Bucket ids for bucket pruning
+  * @param dataFilters       Filters on non-partition columns.
+  * @param tableIdentifier   identifier for the table in the metastore.
+  */
 case class FileSourceScanExec(
-    @transient relation: HadoopFsRelation,
-    output: Seq[Attribute],
-    requiredSchema: StructType,
-    partitionFilters: Seq[Expression],
-    optionalBucketSet: Option[BitSet],
-    dataFilters: Seq[Expression],
-    override val tableIdentifier: Option[TableIdentifier])
-  extends DataSourceScanExec with ColumnarBatchScan  {
+                               @transient relation: HadoopFsRelation,
+                               output: Seq[Attribute],
+                               requiredSchema: StructType,
+                               partitionFilters: Seq[Expression],
+                               optionalBucketSet: Option[BitSet],
+                               dataFilters: Seq[Expression],
+                               override val tableIdentifier: Option[TableIdentifier])
+  extends DataSourceScanExec with ColumnarBatchScan {
 
   // Note that some vals referring the file-based relation are lazy intentionally
   // so that this plan can be canonicalized on executor side too. See SPARK-23731.
@@ -269,6 +268,7 @@ case class FileSourceScanExec(
 
   override lazy val metadata: Map[String, String] = {
     def seqToString(seq: Seq[Any]) = seq.mkString("[", ", ", "]")
+
     val location = relation.location
     val locationDesc =
       location.getClass.getSimpleName + seqToString(location.rootPaths)
@@ -338,6 +338,7 @@ case class FileSourceScanExec(
       // in the case of fallback, this batched scan should never fail because of:
       // 1) only primitive types are supported
       // 2) the number of columns should be smaller than spark.sql.codegen.maxFields
+      // supportBatch的走WholeStageCodegen
       WholeStageCodegenExec(this)(codegenStageId = 0).execute()
     } else {
       val numOutputRows = longMetric("numOutputRows")
@@ -346,7 +347,7 @@ case class FileSourceScanExec(
         inputRDD.mapPartitionsWithIndexInternal { (index, iter) =>
           val proj = UnsafeProjection.create(schema)
           proj.initialize(index)
-          iter.map( r => {
+          iter.map(r => {
             numOutputRows += 1
             proj(r)
           })
@@ -363,22 +364,22 @@ case class FileSourceScanExec(
   override val nodeNamePrefix: String = "File"
 
   /**
-   * Create an RDD for bucketed reads.
-   * The non-bucketed variant of this function is [[createNonBucketedReadRDD]].
-   *
-   * The algorithm is pretty simple: each RDD partition being returned should include all the files
-   * with the same bucket id from all the given Hive partitions.
-   *
-   * @param bucketSpec the bucketing spec.
-   * @param readFile a function to read each (part of a) file.
-   * @param selectedPartitions Hive-style partition that are part of the read.
-   * @param fsRelation [[HadoopFsRelation]] associated with the read.
-   */
+    * Create an RDD for bucketed reads.
+    * The non-bucketed variant of this function is [[createNonBucketedReadRDD]].
+    *
+    * The algorithm is pretty simple: each RDD partition being returned should include all the files
+    * with the same bucket id from all the given Hive partitions.
+    *
+    * @param bucketSpec         the bucketing spec.
+    * @param readFile           a function to read each (part of a) file.
+    * @param selectedPartitions Hive-style partition that are part of the read.
+    * @param fsRelation         [[HadoopFsRelation]] associated with the read.
+    */
   private def createBucketedReadRDD(
-      bucketSpec: BucketSpec,
-      readFile: (PartitionedFile) => Iterator[InternalRow],
-      selectedPartitions: Array[PartitionDirectory],
-      fsRelation: HadoopFsRelation): RDD[InternalRow] = {
+                                     bucketSpec: BucketSpec,
+                                     readFile: (PartitionedFile) => Iterator[InternalRow],
+                                     selectedPartitions: Array[PartitionDirectory],
+                                     fsRelation: HadoopFsRelation): RDD[InternalRow] = {
     logInfo(s"Planning with ${bucketSpec.numBuckets} buckets")
     val filesGroupedToBuckets =
       selectedPartitions.flatMap { p =>
@@ -409,17 +410,17 @@ case class FileSourceScanExec(
   }
 
   /**
-   * Create an RDD for non-bucketed reads.
-   * The bucketed variant of this function is [[createBucketedReadRDD]].
-   *
-   * @param readFile a function to read each (part of a) file.
-   * @param selectedPartitions Hive-style partition that are part of the read.
-   * @param fsRelation [[HadoopFsRelation]] associated with the read.
-   */
+    * Create an RDD for non-bucketed reads.
+    * The bucketed variant of this function is [[createBucketedReadRDD]].
+    *
+    * @param readFile           a function to read each (part of a) file.
+    * @param selectedPartitions Hive-style partition that are part of the read.
+    * @param fsRelation         [[HadoopFsRelation]] associated with the read.
+    */
   private def createNonBucketedReadRDD(
-      readFile: (PartitionedFile) => Iterator[InternalRow],
-      selectedPartitions: Array[PartitionDirectory],
-      fsRelation: HadoopFsRelation): RDD[InternalRow] = {
+                                        readFile: (PartitionedFile) => Iterator[InternalRow],
+                                        selectedPartitions: Array[PartitionDirectory],
+                                        fsRelation: HadoopFsRelation): RDD[InternalRow] = {
     val defaultMaxSplitBytes =
       fsRelation.sparkSession.sessionState.conf.filesMaxPartitionBytes
     val openCostInBytes = fsRelation.sparkSession.sessionState.conf.filesOpenCostInBytes
@@ -435,7 +436,7 @@ case class FileSourceScanExec(
       partition.files.flatMap { file =>
         val blockLocations = getBlockLocations(file)
         if (fsRelation.fileFormat.isSplitable(
-            fsRelation.sparkSession, fsRelation.options, file.getPath)) {
+          fsRelation.sparkSession, fsRelation.options, file.getPath)) {
           (0L until file.getLen by maxSplitBytes).map { offset =>
             val remaining = file.getLen - offset
             val size = if (remaining > maxSplitBytes) maxSplitBytes else remaining
@@ -492,7 +493,7 @@ case class FileSourceScanExec(
   // fraction the segment, and returns location hosts of that block. If no such block can be found,
   // returns an empty array.
   private def getBlockHosts(
-      blockLocations: Array[BlockLocation], offset: Long, length: Long): Array[String] = {
+                             blockLocations: Array[BlockLocation], offset: Long, length: Long): Array[String] = {
     val candidates = blockLocations.map {
       // The fragment starts from a position within this block
       case b if b.getOffset <= offset && offset < b.getOffset + b.getLength =>
@@ -522,9 +523,9 @@ case class FileSourceScanExec(
   }
 
   /**
-   * Send the updated metrics to driver, while this function calling, selectedPartitions has
-   * been initialized. See SPARK-26327 for more detail.
-   */
+    * Send the updated metrics to driver, while this function calling, selectedPartitions has
+    * been initialized. See SPARK-26327 for more detail.
+    */
   private def updateDriverMetrics() = {
     metrics("numFiles").add(selectedPartitions.map(_.files.size.toLong).sum)
     metrics("metadataTime").add(metadataTime)

@@ -25,9 +25,7 @@ import java.util.zip.Deflater
 import scala.collection.JavaConverters._
 import scala.collection.immutable
 import scala.util.matching.Regex
-
 import org.apache.hadoop.fs.Path
-
 import org.apache.spark.{SparkContext, TaskContext}
 import org.apache.spark.internal.Logging
 import org.apache.spark.internal.config._
@@ -35,6 +33,7 @@ import org.apache.spark.network.util.ByteUnit
 import org.apache.spark.sql.catalyst.analysis.Resolver
 import org.apache.spark.sql.catalyst.expressions.CodegenObjectFactoryMode
 import org.apache.spark.sql.catalyst.expressions.codegen.CodeGenerator
+import org.apache.spark.sql.vectorized.ColumnarBatch
 import org.apache.spark.unsafe.array.ByteArrayMethods
 import org.apache.spark.util.Utils
 
@@ -72,9 +71,9 @@ object SQLConf {
   }
 
   /**
-   * Default config. Only used when there is no active SparkSession for the thread.
-   * See [[get]] for more information.
-   */
+    * Default config. Only used when there is no active SparkSession for the thread.
+    * See [[get]] for more information.
+    */
   private lazy val fallbackConf = new ThreadLocal[SQLConf] {
     override def initialValue: SQLConf = new SQLConf
   }
@@ -96,35 +95,35 @@ object SQLConf {
   }
 
   /**
-   * Defines a getter that returns the SQLConf within scope.
-   * See [[get]] for more information.
-   */
+    * Defines a getter that returns the SQLConf within scope.
+    * See [[get]] for more information.
+    */
   private val confGetter = new AtomicReference[() => SQLConf](() => fallbackConf.get())
 
   /**
-   * Sets the active config object within the current scope.
-   * See [[get]] for more information.
-   */
+    * Sets the active config object within the current scope.
+    * See [[get]] for more information.
+    */
   def setSQLConfGetter(getter: () => SQLConf): Unit = {
     confGetter.set(getter)
   }
 
   /**
-   * Returns the active config object within the current scope. If there is an active SparkSession,
-   * the proper SQLConf associated with the thread's active session is used. If it's called from
-   * tasks in the executor side, a SQLConf will be created from job local properties, which are set
-   * and propagated from the driver side.
-   *
-   * The way this works is a little bit convoluted, due to the fact that config was added initially
-   * only for physical plans (and as a result not in sql/catalyst module).
-   *
-   * The first time a SparkSession is instantiated, we set the [[confGetter]] to return the
-   * active SparkSession's config. If there is no active SparkSession, it returns using the thread
-   * local [[fallbackConf]]. The reason [[fallbackConf]] is a thread local (rather than just a conf)
-   * is to support setting different config options for different threads so we can potentially
-   * run tests in parallel. At the time this feature was implemented, this was a no-op since we
-   * run unit tests (that does not involve SparkSession) in serial order.
-   */
+    * Returns the active config object within the current scope. If there is an active SparkSession,
+    * the proper SQLConf associated with the thread's active session is used. If it's called from
+    * tasks in the executor side, a SQLConf will be created from job local properties, which are set
+    * and propagated from the driver side.
+    *
+    * The way this works is a little bit convoluted, due to the fact that config was added initially
+    * only for physical plans (and as a result not in sql/catalyst module).
+    *
+    * The first time a SparkSession is instantiated, we set the [[confGetter]] to return the
+    * active SparkSession's config. If there is no active SparkSession, it returns using the thread
+    * local [[fallbackConf]]. The reason [[fallbackConf]] is a thread local (rather than just a conf)
+    * is to support setting different config options for different threads so we can potentially
+    * run tests in parallel. At the time this feature was implemented, this was a no-op since we
+    * run unit tests (that does not involve SparkSession) in serial order.
+    */
   def get: SQLConf = {
     if (TaskContext.get != null) {
       new ReadOnlySQLConf(TaskContext.get())
@@ -311,16 +310,16 @@ object SQLConf {
 
   val PARQUET_SCHEMA_MERGING_ENABLED = buildConf("spark.sql.parquet.mergeSchema")
     .doc("When true, the Parquet data source merges schemas collected from all data files, " +
-         "otherwise the schema is picked from the summary file or a random data file " +
-         "if no summary file is available.")
+      "otherwise the schema is picked from the summary file or a random data file " +
+      "if no summary file is available.")
     .booleanConf
     .createWithDefault(false)
 
   val PARQUET_SCHEMA_RESPECT_SUMMARIES = buildConf("spark.sql.parquet.respectSummaryFiles")
     .doc("When true, we make assumption that all part-files of Parquet are consistent with " +
-         "summary files and we will ignore them when merging schema. Otherwise, if this is " +
-         "false, which is the default, we will merge all part-files. This should be considered " +
-         "as expert-only option, and shouldn't be enabled before knowing what it means exactly.")
+      "summary files and we will ignore them when merging schema. Otherwise, if this is " +
+      "false, which is the default, we will merge all part-files. This should be considered " +
+      "as expert-only option, and shouldn't be enabled before knowing what it means exactly.")
     .booleanConf
     .createWithDefault(false)
 
@@ -398,9 +397,9 @@ object SQLConf {
       .doc("If true, enables Parquet filter push-down optimization for Timestamp. " +
         "This configuration only has an effect when 'spark.sql.parquet.filterPushdown' is " +
         "enabled and Timestamp stored as TIMESTAMP_MICROS or TIMESTAMP_MILLIS type.")
-    .internal()
-    .booleanConf
-    .createWithDefault(true)
+      .internal()
+      .booleanConf
+      .createWithDefault(true)
 
   val PARQUET_FILTER_PUSHDOWN_DECIMAL_ENABLED =
     buildConf("spark.sql.parquet.filterPushdown.decimal")
@@ -412,11 +411,11 @@ object SQLConf {
 
   val PARQUET_FILTER_PUSHDOWN_STRING_STARTSWITH_ENABLED =
     buildConf("spark.sql.parquet.filterPushdown.string.startsWith")
-    .doc("If true, enables Parquet filter push-down optimization for string startsWith function. " +
-      "This configuration only has an effect when 'spark.sql.parquet.filterPushdown' is enabled.")
-    .internal()
-    .booleanConf
-    .createWithDefault(true)
+      .doc("If true, enables Parquet filter push-down optimization for string startsWith function. " +
+        "This configuration only has an effect when 'spark.sql.parquet.filterPushdown' is enabled.")
+      .internal()
+      .booleanConf
+      .createWithDefault(true)
 
   val PARQUET_FILTER_PUSHDOWN_INFILTERTHRESHOLD =
     buildConf("spark.sql.parquet.pushdown.inFilterThreshold")
@@ -511,34 +510,34 @@ object SQLConf {
 
   val HIVE_VERIFY_PARTITION_PATH = buildConf("spark.sql.hive.verifyPartitionPath")
     .doc("When true, check all the partition paths under the table\'s root directory " +
-         "when reading data stored in HDFS. This configuration will be deprecated in the future " +
-         "releases and replaced by spark.files.ignoreMissingFiles.")
+      "when reading data stored in HDFS. This configuration will be deprecated in the future " +
+      "releases and replaced by spark.files.ignoreMissingFiles.")
     .booleanConf
     .createWithDefault(false)
 
   val HIVE_METASTORE_PARTITION_PRUNING =
     buildConf("spark.sql.hive.metastorePartitionPruning")
       .doc("When true, some predicates will be pushed down into the Hive metastore so that " +
-           "unmatching partitions can be eliminated earlier. This only affects Hive tables " +
-           "not converted to filesource relations (see HiveUtils.CONVERT_METASTORE_PARQUET and " +
-           "HiveUtils.CONVERT_METASTORE_ORC for more information).")
+        "unmatching partitions can be eliminated earlier. This only affects Hive tables " +
+        "not converted to filesource relations (see HiveUtils.CONVERT_METASTORE_PARQUET and " +
+        "HiveUtils.CONVERT_METASTORE_ORC for more information).")
       .booleanConf
       .createWithDefault(true)
 
   val HIVE_MANAGE_FILESOURCE_PARTITIONS =
     buildConf("spark.sql.hive.manageFilesourcePartitions")
       .doc("When true, enable metastore partition management for file source tables as well. " +
-           "This includes both datasource and converted Hive tables. When partition management " +
-           "is enabled, datasource tables store partition in the Hive metastore, and use the " +
-           "metastore to prune partitions during query planning.")
+        "This includes both datasource and converted Hive tables. When partition management " +
+        "is enabled, datasource tables store partition in the Hive metastore, and use the " +
+        "metastore to prune partitions during query planning.")
       .booleanConf
       .createWithDefault(true)
 
   val HIVE_FILESOURCE_PARTITION_FILE_CACHE_SIZE =
     buildConf("spark.sql.hive.filesourcePartitionFileCacheSize")
       .doc("When nonzero, enable caching of partition file metadata in memory. All tables share " +
-           "a cache that can use up to specified num bytes for file metadata. This conf only " +
-           "has an effect when hive filesource partition management is enabled.")
+        "a cache that can use up to specified num bytes for file metadata. This conf only " +
+        "has an effect when hive filesource partition management is enabled.")
       .longConf
       .createWithDefault(250 * 1024 * 1024)
 
@@ -629,12 +628,12 @@ object SQLConf {
     .createWithDefault(false)
 
   val GATHER_FASTSTAT = buildConf("spark.sql.hive.gatherFastStats")
-      .internal()
-      .doc("When true, fast stats (number of files and total size of all files) will be gathered" +
-        " in parallel while repairing table partitions to avoid the sequential listing in Hive" +
-        " metastore.")
-      .booleanConf
-      .createWithDefault(true)
+    .internal()
+    .doc("When true, fast stats (number of files and total size of all files) will be gathered" +
+      " in parallel while repairing table partitions to avoid the sequential listing in Hive" +
+      " metastore.")
+    .booleanConf
+    .createWithDefault(true)
 
   val PARTITION_COLUMN_TYPE_INFERENCE =
     buildConf("spark.sql.sources.partitionColumnTypeInference.enabled")
@@ -655,13 +654,13 @@ object SQLConf {
 
   val CROSS_JOINS_ENABLED = buildConf("spark.sql.crossJoin.enabled")
     .doc("When false, we will throw an error if a query contains a cartesian product without " +
-        "explicit CROSS JOIN syntax.")
+      "explicit CROSS JOIN syntax.")
     .booleanConf
     .createWithDefault(false)
 
   val ORDER_BY_ORDINAL = buildConf("spark.sql.orderByOrdinal")
     .doc("When true, the ordinal numbers are treated as the position in the select list. " +
-         "When false, the ordinal numbers in order/sort by clause are ignored.")
+      "When false, the ordinal numbers in order/sort by clause are ignored.")
     .booleanConf
     .createWithDefault(true)
 
@@ -713,10 +712,10 @@ object SQLConf {
   // Whether to automatically resolve ambiguity in join conditions for self-joins.
   // See SPARK-6231.
   val DATAFRAME_SELF_JOIN_AUTO_RESOLVE_AMBIGUITY =
-    buildConf("spark.sql.selfJoinAutoResolveAmbiguity")
-      .internal()
-      .booleanConf
-      .createWithDefault(true)
+  buildConf("spark.sql.selfJoinAutoResolveAmbiguity")
+    .internal()
+    .booleanConf
+    .createWithDefault(true)
 
   // Whether to retain group by columns or not in GroupedData.agg.
   val DATAFRAME_RETAIN_GROUP_COLUMNS = buildConf("spark.sql.retainGroupColumns")
@@ -745,11 +744,11 @@ object SQLConf {
 
   val WHOLESTAGE_CODEGEN_USE_ID_IN_CLASS_NAME =
     buildConf("spark.sql.codegen.useIdInClassName")
-    .internal()
-    .doc("When true, embed the (whole-stage) codegen stage ID into " +
-      "the class name of the generated class as a suffix")
-    .booleanConf
-    .createWithDefault(true)
+      .internal()
+      .doc("When true, embed the (whole-stage) codegen stage ID into " +
+        "the class name of the generated class as a suffix")
+      .booleanConf
+      .createWithDefault(true)
 
   val WHOLESTAGE_MAX_NUM_FIELDS = buildConf("spark.sql.codegen.maxFields")
     .internal()
@@ -1329,8 +1328,8 @@ object SQLConf {
         "information. The values of options whose names that match this regex will be redacted " +
         "in the explain output. This redaction is applied on top of the global redaction " +
         s"configuration defined by ${SECRET_REDACTION_PATTERN.key}.")
-    .regexConf
-    .createWithDefault("(?i)url".r)
+      .regexConf
+      .createWithDefault("(?i)url".r)
 
   val SQL_STRING_REDACTION_PATTERN =
     buildConf("spark.sql.redaction.string.regex")
@@ -1354,19 +1353,19 @@ object SQLConf {
 
   val ALLOW_CREATING_MANAGED_TABLE_USING_NONEMPTY_LOCATION =
     buildConf("spark.sql.legacy.allowCreatingManagedTableUsingNonemptyLocation")
-    .internal()
-    .doc("When this option is set to true, creating managed tables with nonempty location " +
-      "is allowed. Otherwise, an analysis exception is thrown. ")
-    .booleanConf
-    .createWithDefault(false)
+      .internal()
+      .doc("When this option is set to true, creating managed tables with nonempty location " +
+        "is allowed. Otherwise, an analysis exception is thrown. ")
+      .booleanConf
+      .createWithDefault(false)
 
   val CONTINUOUS_STREAMING_EXECUTOR_QUEUE_SIZE =
     buildConf("spark.sql.streaming.continuous.executorQueueSize")
-    .internal()
-    .doc("The size (measured in number of rows) of the queue used in continuous execution to" +
-      " buffer the results of a ContinuousDataReader.")
-    .intConf
-    .createWithDefault(1024)
+      .internal()
+      .doc("The size (measured in number of rows) of the queue used in continuous execution to" +
+        " buffer the results of a ContinuousDataReader.")
+      .intConf
+      .createWithDefault(1024)
 
   val CONTINUOUS_STREAMING_EXECUTOR_POLL_INTERVAL_MS =
     buildConf("spark.sql.streaming.continuous.executorPollIntervalMs")
@@ -1424,8 +1423,8 @@ object SQLConf {
         "issues. Turn on this config to insert a local sort before actually doing repartition " +
         "to generate consistent repartition results. The performance of repartition() may go " +
         "down since we insert extra local sort before it.")
-        .booleanConf
-        .createWithDefault(true)
+      .booleanConf
+      .createWithDefault(true)
 
   val NESTED_SCHEMA_PRUNING_ENABLED =
     buildConf("spark.sql.optimizer.nestedSchemaPruning.enabled")
@@ -1441,8 +1440,8 @@ object SQLConf {
     buildConf("spark.sql.execution.topKSortFallbackThreshold")
       .internal()
       .doc("In SQL queries with a SORT followed by a LIMIT like " +
-          "'SELECT x FROM t ORDER BY y LIMIT m', if m is under this threshold, do a top-K sort" +
-          " in memory, otherwise do a global sort which spills to disk if necessary.")
+        "'SELECT x FROM t ORDER BY y LIMIT m', if m is under this threshold, do a top-K sort" +
+        " in memory, otherwise do a global sort which spills to disk if necessary.")
       .intConf
       .createWithDefault(ByteArrayMethods.MAX_ROUNDED_ARRAY_LENGTH)
 
@@ -1559,18 +1558,116 @@ object SQLConf {
         "turning the flag on provides a way for these sources to see these partitionBy columns.")
       .booleanConf
       .createWithDefault(false)
+
+  val VECTORIZE_ENABLED =
+    buildConf("spark.sql.vectorize.enabled")
+      .doc("When true, SQL query would execute in vectorized mode when possible")
+      .booleanConf
+      .createWithDefault(false)
+
+
+  val VECTORIZE_AGG_ENABLED =
+    buildConf("spark.sql.vectorize.agg.enabled")
+      .doc("When true, SQL query would execute agg in vectorized mode when possible")
+      .booleanConf
+      .createWithDefault(false)
+
+  val VECTORIZE_HM_CAPACITY =
+    buildConf("spark.sql.vectorize.hm.capacity")
+        .doc("default capacity for row batch hashmap")
+        .intConf
+        .createWithDefault(1<<16)
+
+  val VECTORIZE_HM_LOAD_FACTOR =
+    buildConf("spark.sql.vectorize.hm.lf")
+      .doc("default load factor for row batch hashmap")
+      .doubleConf
+      .createWithDefault(0.5)
+
+  val VECTORIZE_HM_USEORIGIN =
+    buildConf("spark.sql.vectorize.hm.useOri")
+      .doc("When true, use Original vhm implementation")
+      .booleanConf
+      .createWithDefault(false)
+
+  val VECTORIZE_HM_USELP =
+    buildConf("spark.sql.vectorize.hm.useLP")
+      .doc("When true, use Liner Probe in vhm key search")
+      .booleanConf
+      .createWithDefault(false)
+
+  val VECTORIZE_HM_USEQP =
+    buildConf("spark.sql.vectorize.hm.useQP")
+      .doc("When true, use Quadratic Probe in vhm key search")
+      .booleanConf
+      .createWithDefault(false)
+
+  val VECTORIZE_SHUFFLE_ENABLED =
+    buildConf("spark.sql.vectorize.shuffle.enabled")
+      .doc("When true, SQL query would execute shuffle in vectorized mode when possible")
+      .booleanConf
+      .createWithDefault(false)
+
+  val VECTORIZE_BUFFERED_SHUFFLE_ENABLED =
+    buildConf("spark.sql.vectorize.bufferedShuffle.enabled")
+      .doc("When true, SQL query would execute shuffle in vectorized buffered mode when possible")
+      .booleanConf
+      .createWithDefault(false)
+
+  val VECTORIZE_SORT_ENABLED =
+    buildConf("spark.sql.vectorize.sort.enabled")
+      .doc("When true, SQL query would execute sort in vectorized mode when possible")
+      .booleanConf
+      .createWithDefault(false)
+
+  val VECTORIZE_BATCH_SORT_ENABLED =
+    buildConf("spark.sql.vectorize.batch.sort.enabled")
+      .doc("When true, SQL query would execute batch sort in vectorized mode when possible")
+      .booleanConf
+      .createWithDefault(false)
+
+  val VECTORIZE_BATCH_SORT_USE0 =
+    buildConf("spark.sql.vectorize.batch.sort.use0")
+      .doc("When true, SQL query would execute pure batch sort 2 in vectorized mode when possible")
+      .booleanConf
+      .createWithDefault(false)
+
+  val VECTORIZE_BATCH_SORT_USE2 =
+    buildConf("spark.sql.vectorize.batch.sort.use2")
+      .doc("When true, SQL query would execute pure batch sort 2 in vectorized mode when possible")
+      .booleanConf
+      .createWithDefault(false)
+
+  val VECTORIZE_BATCH_SORT_USE3 =
+    buildConf("spark.sql.vectorize.batch.sort.use3")
+      .doc("When true, SQL query would execute pure batch sort 3 in vectorized mode when possible")
+      .booleanConf
+      .createWithDefault(false)
+
+  val VECTORIZE_BATCH_SORT_USE4 =
+    buildConf("spark.sql.vectorize.batch.sort.use4")
+      .doc("When true, SQL query would execute pure batch sort 3 in vectorized mode when possible")
+      .booleanConf
+      .createWithDefault(false)
+
+  val VECTORIZE_SMJ_ENABLED =
+    buildConf("spark.sql.vectorize.batch.sort.use4")
+      .doc("When true, vectorized sort merge join is preferred if possible")
+      .booleanConf
+      .createWithDefault(false)
 }
 
 /**
- * A class that enables the setting and getting of mutable config parameters/hints.
- *
- * In the presence of a SQLContext, these can be set and queried by passing SET commands
- * into Spark SQL's query functions (i.e. sql()). Otherwise, users of this class can
- * modify the hints by programmatically calling the setters and getters of this class.
- *
- * SQLConf is thread-safe (internally synchronized, so safe to be used in multiple threads).
- */
+  * A class that enables the setting and getting of mutable config parameters/hints.
+  *
+  * In the presence of a SQLContext, these can be set and queried by passing SET commands
+  * into Spark SQL's query functions (i.e. sql()). Otherwise, users of this class can
+  * modify the hints by programmatically calling the setters and getters of this class.
+  *
+  * SQLConf is thread-safe (internally synchronized, so safe to be used in multiple threads).
+  */
 class SQLConf extends Serializable with Logging {
+
   import SQLConf._
 
   /** Only low degree of contention is expected for conf, thus NOT using ConcurrentHashMap. */
@@ -1692,7 +1789,7 @@ class SQLConf extends Serializable with Logging {
   def caseSensitiveInferenceMode: HiveCaseSensitiveInferenceMode.Value =
     HiveCaseSensitiveInferenceMode.withName(getConf(HIVE_CASE_SENSITIVE_INFERENCE))
 
-  def compareDateTimestampInTimestamp : Boolean = getConf(COMPARE_DATE_TIMESTAMP_IN_TIMESTAMP)
+  def compareDateTimestampInTimestamp: Boolean = getConf(COMPARE_DATE_TIMESTAMP_IN_TIMESTAMP)
 
   def gatherFastStats: Boolean = getConf(GATHER_FASTSTAT)
 
@@ -1739,9 +1836,9 @@ class SQLConf extends Serializable with Logging {
   def fastHashAggregateRowMaxCapacityBit: Int = getConf(FAST_HASH_AGGREGATE_MAX_ROWS_CAPACITY_BIT)
 
   /**
-   * Returns the [[Resolver]] for the current configuration, which can be used to determine if two
-   * identifiers are equal.
-   */
+    * Returns the [[Resolver]] for the current configuration, which can be used to determine if two
+    * identifiers are equal.
+    */
   def resolver: Resolver = {
     if (caseSensitiveAnalysis) {
       org.apache.spark.sql.catalyst.analysis.caseSensitiveResolution
@@ -1965,6 +2062,38 @@ class SQLConf extends Serializable with Logging {
     getConf(SQLConf.LEGACY_REPLACE_DATABRICKS_SPARK_AVRO_ENABLED)
 
   def setOpsPrecedenceEnforced: Boolean = getConf(SQLConf.LEGACY_SETOPS_PRECEDENCE_ENABLED)
+  private[spark] def vectorizedExecutionEnabled: Boolean = getConf(VECTORIZE_ENABLED)
+
+  private[spark] def vectorizedAGGEnabled: Boolean = getConf(VECTORIZE_AGG_ENABLED)
+
+  private[spark] def vectorizedHMCapacity: Int = getConf(VECTORIZE_HM_CAPACITY)
+
+  private[spark] def vectorizedHMLoadFactor: Double = getConf(VECTORIZE_HM_LOAD_FACTOR)
+
+  private[spark] def vectorizedHMOrigin: Boolean = getConf(VECTORIZE_HM_USEORIGIN)
+
+  private[spark] def vectorizedHMLinerProbe: Boolean = getConf(VECTORIZE_HM_USELP)
+
+  private[spark] def vectorizedHMQuadraticProbe: Boolean = getConf(VECTORIZE_HM_USEQP)
+
+  private[spark] def vectorizedSortEnabled: Boolean = getConf(VECTORIZE_SORT_ENABLED)
+
+  private[spark] def vectorizedBatchSortEnabled: Boolean = getConf(VECTORIZE_BATCH_SORT_ENABLED)
+
+  private[spark] def vectorizedBatchSortUse0: Boolean = getConf(VECTORIZE_BATCH_SORT_USE0)
+
+  private[spark] def vectorizedBatchSortUse2: Boolean = getConf(VECTORIZE_BATCH_SORT_USE2)
+
+  private[spark] def vectorizedBatchSortUse3: Boolean = getConf(VECTORIZE_BATCH_SORT_USE3)
+
+  private[spark] def vectorizedBatchSortUse4: Boolean = getConf(VECTORIZE_BATCH_SORT_USE4)
+
+  private[spark] def vectorizedShuffleEnabled: Boolean = getConf(VECTORIZE_SHUFFLE_ENABLED)
+
+  private[spark] def vectorizedBufferedShuffleEnabled: Boolean =
+    getConf(VECTORIZE_BUFFERED_SHUFFLE_ENABLED)
+
+  private[spark] def vectorizedSMJEnabled: Boolean = getConf(VECTORIZE_SMJ_ENABLED)
 
   /** ********************** SQLConf functionality methods ************ */
 
@@ -2005,37 +2134,37 @@ class SQLConf extends Serializable with Logging {
   }
 
   /**
-   * Return the value of Spark SQL configuration property for the given key. If the key is not set
-   * yet, return `defaultValue`. This is useful when `defaultValue` in ConfigEntry is not the
-   * desired one.
-   */
+    * Return the value of Spark SQL configuration property for the given key. If the key is not set
+    * yet, return `defaultValue`. This is useful when `defaultValue` in ConfigEntry is not the
+    * desired one.
+    */
   def getConf[T](entry: ConfigEntry[T], defaultValue: T): T = {
     require(sqlConfEntries.get(entry.key) == entry, s"$entry is not registered")
     Option(settings.get(entry.key)).map(entry.valueConverter).getOrElse(defaultValue)
   }
 
   /**
-   * Return the value of Spark SQL configuration property for the given key. If the key is not set
-   * yet, return `defaultValue` in [[ConfigEntry]].
-   */
+    * Return the value of Spark SQL configuration property for the given key. If the key is not set
+    * yet, return `defaultValue` in [[ConfigEntry]].
+    */
   def getConf[T](entry: ConfigEntry[T]): T = {
     require(sqlConfEntries.get(entry.key) == entry, s"$entry is not registered")
     entry.readFrom(reader)
   }
 
   /**
-   * Return the value of an optional Spark SQL configuration property for the given key. If the key
-   * is not set yet, returns None.
-   */
+    * Return the value of an optional Spark SQL configuration property for the given key. If the key
+    * is not set yet, returns None.
+    */
   def getConf[T](entry: OptionalConfigEntry[T]): Option[T] = {
     require(sqlConfEntries.get(entry.key) == entry, s"$entry is not registered")
     entry.readFrom(reader)
   }
 
   /**
-   * Return the `string` value of Spark SQL configuration property for the given key. If the key is
-   * not set yet, return `defaultValue`.
-   */
+    * Return the `string` value of Spark SQL configuration property for the given key. If the key is
+    * not set yet, return `defaultValue`.
+    */
   def getConfString(key: String, defaultValue: String): String = {
     if (defaultValue != null && defaultValue != ConfigEntry.UNDEFINED) {
       val entry = sqlConfEntries.get(key)
@@ -2055,16 +2184,18 @@ class SQLConf extends Serializable with Logging {
   }
 
   /**
-   * Return all the configuration properties that have been set (i.e. not the default).
-   * This creates a new copy of the config properties in the form of a Map.
-   */
+    * Return all the configuration properties that have been set (i.e. not the default).
+    * This creates a new copy of the config properties in the form of a Map.
+    */
   def getAllConfs: immutable.Map[String, String] =
-    settings.synchronized { settings.asScala.toMap }
+    settings.synchronized {
+      settings.asScala.toMap
+    }
 
   /**
-   * Return all the configuration definitions that have been defined in [[SQLConf]]. Each
-   * definition contains key, defaultValue and doc.
-   */
+    * Return all the configuration definitions that have been defined in [[SQLConf]]. Each
+    * definition contains key, defaultValue and doc.
+    */
   def getAllDefinedConfs: Seq[(String, String, String)] = sqlConfEntries.synchronized {
     sqlConfEntries.values.asScala.filter(_.isPublic).map { entry =>
       val displayValue = Option(getConfString(entry.key, null)).getOrElse(entry.defaultValueString)
@@ -2073,8 +2204,8 @@ class SQLConf extends Serializable with Logging {
   }
 
   /**
-   * Redacts the given option map according to the description of SQL_OPTIONS_REDACTION_PATTERN.
-   */
+    * Redacts the given option map according to the description of SQL_OPTIONS_REDACTION_PATTERN.
+    */
   def redactOptions(options: Map[String, String]): Map[String, String] = {
     val regexes = Seq(
       getConf(SQL_OPTIONS_REDACTION_PATTERN),
@@ -2084,8 +2215,8 @@ class SQLConf extends Serializable with Logging {
   }
 
   /**
-   * Return whether a given key is set in this [[SQLConf]].
-   */
+    * Return whether a given key is set in this [[SQLConf]].
+    */
   def contains(key: String): Boolean = {
     settings.containsKey(key)
   }
@@ -2109,7 +2240,7 @@ class SQLConf extends Serializable with Logging {
   override def clone(): SQLConf = {
     val result = new SQLConf
     getAllConfs.foreach {
-      case(k, v) => if (v ne null) result.setConfString(k, v)
+      case (k, v) => if (v ne null) result.setConfString(k, v)
     }
     result
   }

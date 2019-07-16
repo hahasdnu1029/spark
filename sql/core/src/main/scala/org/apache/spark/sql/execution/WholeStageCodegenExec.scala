@@ -40,10 +40,11 @@ import org.apache.spark.util.Utils
 
 /**
  * An interface for those physical operators that support codegen.
+  * 实现了该接口，代表物理算子支持WholeStageCodegen
  */
 trait CodegenSupport extends SparkPlan {
 
-  /** Prefix used in the current operator's variable names. */
+  /** Prefix used in the current operator's variable names. 代表当前物理算子生成的变量名得我前缀*/
   private def variablePrefix: String = this match {
     case _: HashAggregateExec => "agg"
     case _: BroadcastHashJoinExec => "bhj"
@@ -81,10 +82,13 @@ trait CodegenSupport extends SparkPlan {
 
   /**
    * Returns Java source code to process the rows from input RDD.
+    *
    */
   final def produce(ctx: CodegenContext, parent: CodegenSupport): String = executeQuery {
+    // 设置当前节点的父节点和前缀
     this.parent = parent
     ctx.freshNamePrefix = variablePrefix
+    // 调用本节点的doProduce()
     s"""
        |${ctx.registerComment(s"PRODUCE: ${this.simpleString}")}
        |${doProduce(ctx)}
@@ -108,6 +112,7 @@ trait CodegenSupport extends SparkPlan {
    *     # call consume(), which will call parent.doConsume()
    *      if (shouldStop()) return;
    *   }
+    * 只有FileSourceScanExec的doProduce和InputAdapter两个节点构造整个stage的代码框架
    */
   protected def doProduce(ctx: CodegenContext): String
 
@@ -186,6 +191,7 @@ trait CodegenSupport extends SparkPlan {
         && CodeGenerator.isValidParamLength(paramLength)) {
       constructDoConsumeFunction(ctx, inputVars, row)
     } else {
+      // 调用父节点的doConsume()
       parent.doConsume(ctx, inputVars, rowVar)
     }
     s"""
@@ -540,9 +546,12 @@ case class WholeStageCodegenExec(child: SparkPlan)(val codegenStageId: Int)
    * @return the tuple of the codegen context and the actual generated source.
    */
   def doCodeGen(): (CodegenContext, CodeAndComment) = {
+    // 首先构造一个CodegenContext上下文对象
     val ctx = new CodegenContext
+    // 调用child的produce去生成代码整体框架
     val code = child.asInstanceOf[CodegenSupport].produce(ctx, this)
 
+    // 下面是根据生成的code构造整个CodegenContext对象
     // main next function.
     ctx.addNewFunction("processNext",
       s"""
@@ -593,13 +602,17 @@ case class WholeStageCodegenExec(child: SparkPlan)(val codegenStageId: Int)
     logDebug(s"\n${CodeFormatter.format(cleanedSource)}")
     (ctx, cleanedSource)
   }
-
+  // 入口逻辑，他还是从调用doExecute开始，在所有支持WholeStageCodegen的算子后面加入了WholeStageCodegen
   override def doExecute(): RDD[InternalRow] = {
+    // 通过doCodeGen去生成代码
     val (ctx, cleanedSource) = doCodeGen()
+    // 对生成的代码进行编译，如果编译失败，走原来的执行逻辑，调用child.execute()
+    // 编译返回的是编译生成的字节码和字节码的大小
     // try to compile and fallback if it failed
     val (_, maxCodeSize) = try {
       CodeGenerator.compile(cleanedSource)
     } catch {
+      // 如果编译失败，且配置了回退技术
       case NonFatal(_) if !Utils.isTesting && sqlContext.conf.codegenFallback =>
         // We should already saw the error message
         logWarning(s"Whole-stage codegen disabled for plan (id=$codegenStageId):\n $treeString")
@@ -623,16 +636,18 @@ case class WholeStageCodegenExec(child: SparkPlan)(val codegenStageId: Int)
     val references = ctx.references.toArray
 
     val durationMs = longMetric("pipelineTime")
-
+    // 获取要处理的数据，子节点传过来的，pull上来的
     val rdds = child.asInstanceOf[CodegenSupport].inputRDDs()
     assert(rdds.size <= 2, "Up to two input RDDs can be supported")
     if (rdds.length == 1) {
       rdds.head.mapPartitionsWithIndex { (index, iter) =>
         val (clazz, _) = CodeGenerator.compile(cleanedSource)
+        // 返回的是GeneratedIterator类对象
         val buffer = clazz.generate(references).asInstanceOf[BufferedRowIterator]
         buffer.init(index, Array(iter))
         new Iterator[InternalRow] {
           override def hasNext: Boolean = {
+            // 调用hasNext函数去处理
             val v = buffer.hasNext
             if (!v) durationMs += buffer.durationMs()
             v

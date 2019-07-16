@@ -20,19 +20,8 @@ package org.apache.spark.sql.catalyst.expressions.codegen
 import java.io.ByteArrayInputStream
 import java.util.{Map => JavaMap}
 
-import scala.collection.JavaConverters._
-import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
-import scala.language.existentials
-import scala.util.control.NonFatal
-
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.google.common.util.concurrent.{ExecutionError, UncheckedExecutionException}
-import org.codehaus.commons.compiler.CompileException
-import org.codehaus.janino.{ByteArrayClassLoader, ClassBodyEvaluator, InternalCompilerException, SimpleCompiler}
-import org.codehaus.janino.util.ClassFile
-
-import org.apache.spark.{SparkEnv, TaskContext, TaskKilledException}
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark.internal.Logging
 import org.apache.spark.metrics.source.CodegenMetrics
@@ -43,9 +32,18 @@ import org.apache.spark.sql.catalyst.util.{ArrayData, GenericArrayData, MapData}
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.Platform
-import org.apache.spark.unsafe.array.ByteArrayMethods
 import org.apache.spark.unsafe.types._
 import org.apache.spark.util.{ParentClassLoader, Utils}
+import org.apache.spark.{TaskContext, TaskKilledException}
+import org.codehaus.commons.compiler.CompileException
+import org.codehaus.janino.util.ClassFile
+import org.codehaus.janino.{ByteArrayClassLoader, ClassBodyEvaluator, InternalCompilerException, SimpleCompiler}
+
+import scala.collection.JavaConverters._
+import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
+import scala.language.existentials
+import scala.util.control.NonFatal
 
 /**
  * Java source for evaluating an [[Expression]] given a [[InternalRow]] of input.
@@ -119,6 +117,7 @@ class CodegenContext {
 
   /**
    * Holding a list of objects that could be used passed into generated class.
+    * 保存用于生成类对象的参数列表
    */
   val references: mutable.ArrayBuffer[Any] = new mutable.ArrayBuffer[Any]()
 
@@ -327,6 +326,7 @@ class CodegenContext {
    * Add buffer variable which stores data coming from an [[InternalRow]]. This methods guarantees
    * that the variable is safely stored, which is important for (potentially) byte array backed
    * data types like: UTF8String, ArrayData, MapData & InternalRow.
+    * 用来添加缓冲变量，与传统的状态变量不同之处是你，缓冲变量一般用来存储来自InternalRow中的数据
    */
   def addBufferedState(dataType: DataType, variableName: String, initCode: String): ExprCode = {
     val value = addMutableState(javaType(dataType), variableName)

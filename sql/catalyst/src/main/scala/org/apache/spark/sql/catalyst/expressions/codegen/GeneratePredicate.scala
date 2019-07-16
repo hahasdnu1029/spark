@@ -46,6 +46,7 @@ object GeneratePredicate extends CodeGenerator[Expression, Predicate] {
 
   protected def create(predicate: Expression): Predicate = {
     val ctx = newCodeGenContext()
+    // 生成eval的代码
     val eval = predicate.genCode(ctx)
 
     val codeBody = s"""
@@ -78,6 +79,7 @@ object GeneratePredicate extends CodeGenerator[Expression, Predicate] {
       new CodeAndComment(codeBody, ctx.getPlaceHolderToComments()))
     logDebug(s"Generated predicate '$predicate':\n${CodeFormatter.format(code)}")
 
+    // 对生成的代码进行编译，返回一个二元组（clazz,_）。clazz是class字节码对象
     val (clazz, _) = CodeGenerator.compile(code)
     clazz.generate(ctx.references.toArray).asInstanceOf[Predicate]
   }

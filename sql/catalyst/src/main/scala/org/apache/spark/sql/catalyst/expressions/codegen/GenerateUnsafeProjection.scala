@@ -328,7 +328,7 @@ object GenerateUnsafeProjection extends CodeGenerator[Seq[Expression], UnsafePro
   protected def create(references: Seq[Expression]): UnsafeProjection = {
     create(references, subexpressionEliminationEnabled = false)
   }
-
+  // 代码生成的核心代码
   private def create(
       expressions: Seq[Expression],
       subexpressionEliminationEnabled: Boolean): UnsafeProjection = {
