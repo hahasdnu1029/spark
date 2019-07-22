@@ -173,6 +173,7 @@ object UnsafeProjection
    * Same as other create()'s but allowing enabling/disabling subexpression elimination.
    * The param `subexpressionEliminationEnabled` doesn't guarantee to work. For example,
    * when fallbacking to interpreted execution, it is not supported.
+    * 这里进行代码生成
    */
   def create(
       exprs: Seq[Expression],
@@ -180,6 +181,7 @@ object UnsafeProjection
       subexpressionEliminationEnabled: Boolean): UnsafeProjection = {
     val unsafeExprs = toUnsafeExprs(toBoundExprs(exprs, inputSchema))
     try {
+      // 生成对应的类
       GenerateUnsafeProjection.generate(unsafeExprs, subexpressionEliminationEnabled)
     } catch {
       case NonFatal(_) =>

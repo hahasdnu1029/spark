@@ -195,6 +195,7 @@ trait CreatableRelationProvider {
 @InterfaceStability.Stable
 abstract class BaseRelation {
   def sqlContext: SQLContext
+
   def schema: StructType
 
   /**

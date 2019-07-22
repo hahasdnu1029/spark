@@ -281,12 +281,16 @@ object GenerateUnsafeProjection extends CodeGenerator[Seq[Expression], UnsafePro
     case _ => s"$writer.write($index, $input);"
   }
 
+
   def createCode(
       ctx: CodegenContext,
       expressions: Seq[Expression],
       useSubexprElimination: Boolean = false): ExprCode = {
+
     val exprEvals = ctx.generateExpressions(expressions, useSubexprElimination)
+
     val exprSchemas = expressions.map(e => Schema(e.dataType, e.nullable))
+
 
     val numVarLenFields = exprSchemas.count {
       case Schema(dt, _) => !UnsafeRow.isFixedLength(dt)

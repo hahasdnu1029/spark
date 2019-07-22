@@ -41,14 +41,15 @@ object GeneratePredicate extends CodeGenerator[Expression, Predicate] {
 
   protected def canonicalize(in: Expression): Expression = ExpressionCanonicalizer.execute(in)
 
+  // 先绑定schema
   protected def bind(in: Expression, inputSchema: Seq[Attribute]): Expression =
     BindReferences.bindReference(in, inputSchema)
-
+  // 再调用create生成
   protected def create(predicate: Expression): Predicate = {
     val ctx = newCodeGenContext()
     // 生成eval的代码
     val eval = predicate.genCode(ctx)
-
+    // ctx.INPT_ROW里面存储的是每次传入的InternalRow的变量名字
     val codeBody = s"""
       public SpecificPredicate generate(Object[] references) {
         return new SpecificPredicate(references);

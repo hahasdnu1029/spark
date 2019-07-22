@@ -415,6 +415,7 @@ case class And(left: Expression, right: Expression) extends BinaryOperator with 
   // | FALSE   | FALSE   | FALSE   | FALSE   |
   // | UNKNOWN | UNKNOWN | FALSE   | UNKNOWN |
   // +---------+---------+---------+---------+
+  // 原始的eval
   override def eval(input: InternalRow): Any = {
     val input1 = left.eval(input)
     if (input1 == false) {
@@ -432,8 +433,9 @@ case class And(left: Expression, right: Expression) extends BinaryOperator with 
       }
     }
   }
-
+  // 调用doGenCode生成返回的eval
   override def doGenCode(ctx: CodegenContext, ev: ExprCode): ExprCode = {
+    // left 先eval，在right进行eval
     val eval1 = left.genCode(ctx)
     val eval2 = right.genCode(ctx)
 

@@ -46,7 +46,7 @@ package object errors {
 
   /**
    *  Wraps any exceptions that are thrown while executing `f` in a
-   *  [[catalyst.errors.TreeNodeException TreeNodeException]], attaching the provided `tree`.
+   *  [[org.apache.spark.sql.catalyst.errors.TreeNodeException TreeNodeException]], attaching the provided `tree`.
    */
   def attachTree[TreeType <: TreeNode[_], A](tree: TreeType, msg: String = "")(f: => A): A = {
     try f catch {

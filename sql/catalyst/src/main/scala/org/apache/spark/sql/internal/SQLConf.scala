@@ -33,7 +33,6 @@ import org.apache.spark.network.util.ByteUnit
 import org.apache.spark.sql.catalyst.analysis.Resolver
 import org.apache.spark.sql.catalyst.expressions.CodegenObjectFactoryMode
 import org.apache.spark.sql.catalyst.expressions.codegen.CodeGenerator
-import org.apache.spark.sql.vectorized.ColumnarBatch
 import org.apache.spark.unsafe.array.ByteArrayMethods
 import org.apache.spark.util.Utils
 
@@ -1243,7 +1242,7 @@ object SQLConf {
     buildConf("spark.sql.execution.rangeExchange.sampleSizePerPartition")
       .internal()
       .doc("Number of points to sample per partition in order to determine the range boundaries" +
-          " for range partitioning, typically used in global sorting (without limit).")
+        " for range partitioning, typically used in global sorting (without limit).")
       .intConf
       .createWithDefault(100)
 
@@ -1565,6 +1564,17 @@ object SQLConf {
       .booleanConf
       .createWithDefault(false)
 
+  val VECTORIZE_BATCH_CAPACITY =
+    buildConf("spark.sql.vectorize.batch.capacity")
+      .doc("the default capacity for a RowBatch")
+      .intConf
+      .createWithDefault(1024)
+
+  val VECTORIZE_SORT_BATCH_CAPACITY =
+    buildConf("spark.sql.vectorize.sort.batch.capacity")
+      .doc("the default capacity for a sort RowBatch")
+      .intConf
+      .createWithDefault(1024)
 
   val VECTORIZE_AGG_ENABLED =
     buildConf("spark.sql.vectorize.agg.enabled")
@@ -1574,9 +1584,9 @@ object SQLConf {
 
   val VECTORIZE_HM_CAPACITY =
     buildConf("spark.sql.vectorize.hm.capacity")
-        .doc("default capacity for row batch hashmap")
-        .intConf
-        .createWithDefault(1<<16)
+      .doc("default capacity for row batch hashmap")
+      .intConf
+      .createWithDefault(1 << 16)
 
   val VECTORIZE_HM_LOAD_FACTOR =
     buildConf("spark.sql.vectorize.hm.lf")
@@ -1651,7 +1661,7 @@ object SQLConf {
       .createWithDefault(false)
 
   val VECTORIZE_SMJ_ENABLED =
-    buildConf("spark.sql.vectorize.batch.sort.use4")
+    buildConf("spark.sql.vectorize.smj.enabled")
       .doc("When true, vectorized sort merge join is preferred if possible")
       .booleanConf
       .createWithDefault(false)
@@ -2062,7 +2072,12 @@ class SQLConf extends Serializable with Logging {
     getConf(SQLConf.LEGACY_REPLACE_DATABRICKS_SPARK_AVRO_ENABLED)
 
   def setOpsPrecedenceEnforced: Boolean = getConf(SQLConf.LEGACY_SETOPS_PRECEDENCE_ENABLED)
+
   private[spark] def vectorizedExecutionEnabled: Boolean = getConf(VECTORIZE_ENABLED)
+
+  private[spark] def vectorizedBatchCapacity: Int = getConf(VECTORIZE_BATCH_CAPACITY)
+
+  private[spark] def vectorizedSortBatchCapacity: Int = getConf(VECTORIZE_SORT_BATCH_CAPACITY)
 
   private[spark] def vectorizedAGGEnabled: Boolean = getConf(VECTORIZE_AGG_ENABLED)
 

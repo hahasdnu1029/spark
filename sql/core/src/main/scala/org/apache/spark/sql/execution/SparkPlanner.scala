@@ -32,7 +32,6 @@ class SparkPlanner(
   extends SparkStrategies {
 
   def numPartitions: Int = conf.numShufflePartitions
-
   override def strategies: Seq[Strategy] =
     experimentalMethods.extraStrategies ++
       extraPlanningStrategies ++ (

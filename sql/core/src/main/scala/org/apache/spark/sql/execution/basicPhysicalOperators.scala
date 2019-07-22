@@ -66,6 +66,7 @@ case class ProjectExec(projectList: Seq[NamedExpression], child: SparkPlan)
      """.stripMargin
   }
 
+  // 部分代码生成的执行逻辑
   protected override def doExecute(): RDD[InternalRow] = {
     child.execute().mapPartitionsWithIndexInternal { (index, iter) =>
       val project = UnsafeProjection.create(projectList, child.output,
@@ -211,8 +212,11 @@ case class FilterExec(condition: Expression, child: SparkPlan)
   protected override def doExecute(): RDD[InternalRow] = {
     val numOutputRows = longMetric("numOutputRows")
     child.execute().mapPartitionsWithIndexInternal { (index, iter) =>
+      // 进行谓词的生成
       val predicate = newPredicate(condition, child.output)
+      // 返回的对象进行初始化
       predicate.initialize(0)
+      // 迭代处理
       iter.filter { row =>
         val r = predicate.eval(row)
         if (r) numOutputRows += 1

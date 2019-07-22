@@ -636,4 +636,5 @@ abstract class SparkStrategies extends QueryPlanner[SparkPlan] {
       case _ => Nil
     }
   }
+
 }

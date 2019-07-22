@@ -21,7 +21,7 @@ import java.util.Locale
 import java.util.concurrent.Callable
 
 import org.apache.hadoop.fs.Path
-
+import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.internal.Logging
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql._
@@ -41,24 +41,25 @@ import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.UTF8String
+import org.apache.spark.util.SerializableConfiguration
 
 /**
- * Replaces generic operations with specific variants that are designed to work with Spark
- * SQL Data Sources.
- *
- * Note that, this rule must be run after `PreprocessTableCreation` and
- * `PreprocessTableInsertion`.
- */
+  * Replaces generic operations with specific variants that are designed to work with Spark
+  * SQL Data Sources.
+  *
+  * Note that, this rule must be run after `PreprocessTableCreation` and
+  * `PreprocessTableInsertion`.
+  */
 case class DataSourceAnalysis(conf: SQLConf) extends Rule[LogicalPlan] with CastSupport {
 
   def resolver: Resolver = conf.resolver
 
   // Visible for testing.
   def convertStaticPartitions(
-      sourceAttributes: Seq[Attribute],
-      providedPartitions: Map[String, Option[String]],
-      targetAttributes: Seq[Attribute],
-      targetPartitionSchema: StructType): Seq[NamedExpression] = {
+                               sourceAttributes: Seq[Attribute],
+                               providedPartitions: Map[String, Option[String]],
+                               targetAttributes: Seq[Attribute],
+                               targetPartitionSchema: StructType): Seq[NamedExpression] = {
 
     assert(providedPartitions.exists(_._2.isDefined))
 
@@ -137,12 +138,12 @@ case class DataSourceAnalysis(conf: SQLConf) extends Rule[LogicalPlan] with Cast
       CreateDataSourceTableCommand(tableDesc, ignoreIfExists = mode == SaveMode.Ignore)
 
     case CreateTable(tableDesc, mode, Some(query))
-        if query.resolved && DDLUtils.isDatasourceTable(tableDesc) =>
+      if query.resolved && DDLUtils.isDatasourceTable(tableDesc) =>
       DDLUtils.checkDataColNames(tableDesc.copy(schema = query.schema))
       CreateDataSourceTableAsSelectCommand(tableDesc, mode, query, query.output.map(_.name))
 
-    case InsertIntoTable(l @ LogicalRelation(_: InsertableRelation, _, _, _),
-        parts, query, overwrite, false) if parts.isEmpty =>
+    case InsertIntoTable(l@LogicalRelation(_: InsertableRelation, _, _, _),
+    parts, query, overwrite, false) if parts.isEmpty =>
       InsertIntoDataSourceCommand(l, query, overwrite)
 
     case InsertIntoDir(_, storage, provider, query, overwrite)
@@ -153,8 +154,8 @@ case class DataSourceAnalysis(conf: SQLConf) extends Rule[LogicalPlan] with Cast
 
       InsertIntoDataSourceDirCommand(storage, provider.get, query, overwrite)
 
-    case i @ InsertIntoTable(
-        l @ LogicalRelation(t: HadoopFsRelation, _, table, _), parts, query, overwrite, _) =>
+    case i@InsertIntoTable(
+    l@LogicalRelation(t: HadoopFsRelation, _, table, _), parts, query, overwrite, _) =>
       // If the InsertIntoTable command is for a partitioned HadoopFsRelation and
       // the user has specified static partitions, we add a Project operator on top of the query
       // to include those constant column values in the query result.
@@ -215,11 +216,11 @@ case class DataSourceAnalysis(conf: SQLConf) extends Rule[LogicalPlan] with Cast
 
 
 /**
- * Replaces [[UnresolvedCatalogRelation]] with concrete relation logical plans.
- *
- * TODO: we should remove the special handling for hive tables after completely making hive as a
- * data source.
- */
+  * Replaces [[UnresolvedCatalogRelation]] with concrete relation logical plans.
+  *
+  * TODO: we should remove the special handling for hive tables after completely making hive as a
+  * data source.
+  */
 class FindDataSourceTable(sparkSession: SparkSession) extends Rule[LogicalPlan] {
   private def readDataSourceTable(table: CatalogTable): LogicalPlan = {
     val qualifiedTableName = QualifiedTableName(table.database, table.identifier.table)
@@ -253,11 +254,11 @@ class FindDataSourceTable(sparkSession: SparkSession) extends Rule[LogicalPlan] 
   }
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
-    case i @ InsertIntoTable(UnresolvedCatalogRelation(tableMeta), _, _, _, _)
-        if DDLUtils.isDatasourceTable(tableMeta) =>
+    case i@InsertIntoTable(UnresolvedCatalogRelation(tableMeta), _, _, _, _)
+      if DDLUtils.isDatasourceTable(tableMeta) =>
       i.copy(table = readDataSourceTable(tableMeta))
 
-    case i @ InsertIntoTable(UnresolvedCatalogRelation(tableMeta), _, _, _, _) =>
+    case i@InsertIntoTable(UnresolvedCatalogRelation(tableMeta), _, _, _, _) =>
       i.copy(table = readHiveTable(tableMeta))
 
     case UnresolvedCatalogRelation(tableMeta) if DDLUtils.isDatasourceTable(tableMeta) =>
@@ -270,13 +271,15 @@ class FindDataSourceTable(sparkSession: SparkSession) extends Rule[LogicalPlan] 
 
 
 /**
- * A Strategy for planning scans over data sources defined using the sources API.
- */
+  * A Strategy for planning scans over data sources defined using the sources API.
+  * //对不同的source数据源进行匹配
+  */
 case class DataSourceStrategy(conf: SQLConf) extends Strategy with Logging with CastSupport {
+
   import DataSourceStrategy._
 
   def apply(plan: LogicalPlan): Seq[execution.SparkPlan] = plan match {
-    case PhysicalOperation(projects, filters, l @ LogicalRelation(t: CatalystScan, _, _, _)) =>
+    case PhysicalOperation(projects, filters, l@LogicalRelation(t: CatalystScan, _, _, _)) =>
       pruneFilterProjectRaw(
         l,
         projects,
@@ -285,21 +288,21 @@ case class DataSourceStrategy(conf: SQLConf) extends Strategy with Logging with 
           toCatalystRDD(l, requestedColumns, t.buildScan(requestedColumns, allPredicates))) :: Nil
 
     case PhysicalOperation(projects, filters,
-                           l @ LogicalRelation(t: PrunedFilteredScan, _, _, _)) =>
+    l@LogicalRelation(t: PrunedFilteredScan, _, _, _)) =>
       pruneFilterProject(
         l,
         projects,
         filters,
         (a, f) => toCatalystRDD(l, a, t.buildScan(a.map(_.name).toArray, f))) :: Nil
 
-    case PhysicalOperation(projects, filters, l @ LogicalRelation(t: PrunedScan, _, _, _)) =>
+    case PhysicalOperation(projects, filters, l@LogicalRelation(t: PrunedScan, _, _, _)) =>
       pruneFilterProject(
         l,
         projects,
         filters,
         (a, _) => toCatalystRDD(l, a, t.buildScan(a.map(_.name).toArray))) :: Nil
 
-    case l @ LogicalRelation(baseRelation: TableScan, _, _, _) =>
+    case l@LogicalRelation(baseRelation: TableScan, _, _, _) =>
       RowDataSourceScanExec(
         l.output,
         l.output.indices,
@@ -314,10 +317,10 @@ case class DataSourceStrategy(conf: SQLConf) extends Strategy with Logging with 
 
   // Based on Public API.
   private def pruneFilterProject(
-      relation: LogicalRelation,
-      projects: Seq[NamedExpression],
-      filterPredicates: Seq[Expression],
-      scanBuilder: (Seq[Attribute], Array[Filter]) => RDD[InternalRow]) = {
+                                  relation: LogicalRelation,
+                                  projects: Seq[NamedExpression],
+                                  filterPredicates: Seq[Expression],
+                                  scanBuilder: (Seq[Attribute], Array[Filter]) => RDD[InternalRow]) = {
     pruneFilterProjectRaw(
       relation,
       projects,
@@ -342,17 +345,19 @@ case class DataSourceStrategy(conf: SQLConf) extends Strategy with Logging with 
   //
   // Note that 2 and 3 shouldn't be used together.
   private def pruneFilterProjectRaw(
-    relation: LogicalRelation,
-    projects: Seq[NamedExpression],
-    filterPredicates: Seq[Expression],
-    scanBuilder: (Seq[Attribute], Seq[Expression], Seq[Filter]) => RDD[InternalRow]): SparkPlan = {
+                                     relation: LogicalRelation,
+                                     projects: Seq[NamedExpression],
+                                     filterPredicates: Seq[Expression],
+                                     scanBuilder: (Seq[Attribute], Seq[Expression], Seq[Filter]) => RDD[InternalRow]): SparkPlan = {
 
     val projectSet = AttributeSet(projects.flatMap(_.references))
     val filterSet = AttributeSet(filterPredicates.flatMap(_.references))
 
-    val candidatePredicates = filterPredicates.map { _ transform {
-      case a: AttributeReference => relation.attributeMap(a) // Match original case of attributes.
-    }}
+    val candidatePredicates = filterPredicates.map {
+      _ transform {
+        case a: AttributeReference => relation.attributeMap(a) // Match original case of attributes.
+      }
+    }
 
     val (unhandledPredicates, pushedFilters, handledFilters) =
       selectFilters(relation.relation, candidatePredicates)
@@ -362,8 +367,8 @@ case class DataSourceStrategy(conf: SQLConf) extends Strategy with Logging with 
     val filterCondition = unhandledPredicates.reduceLeftOption(expressions.And)
 
     if (projects.map(_.toAttribute) == projects &&
-        projectSet.size == projects.size &&
-        filterSet.subsetOf(projectSet)) {
+      projectSet.size == projects.size &&
+      filterSet.subsetOf(projectSet)) {
       // When it is possible to just use column pruning to get the right projection and
       // when the columns of this projection are enough to evaluate all filter conditions,
       // just do a scan followed by a filter, with no extra project.
@@ -409,12 +414,12 @@ case class DataSourceStrategy(conf: SQLConf) extends Strategy with Logging with 
   }
 
   /**
-   * Convert RDD of Row into RDD of InternalRow with objects in catalyst types
-   */
+    * Convert RDD of Row into RDD of InternalRow with objects in catalyst types
+    */
   private[this] def toCatalystRDD(
-      relation: LogicalRelation,
-      output: Seq[Attribute],
-      rdd: RDD[Row]): RDD[InternalRow] = {
+                                   relation: LogicalRelation,
+                                   output: Seq[Attribute],
+                                   rdd: RDD[Row]): RDD[InternalRow] = {
     if (relation.relation.needConversion) {
       execution.RDDConversions.rowToRowRdd(rdd, output.map(_.dataType))
     } else {
@@ -423,8 +428,8 @@ case class DataSourceStrategy(conf: SQLConf) extends Strategy with Logging with 
   }
 
   /**
-   * Convert RDD of Row into RDD of InternalRow with objects in catalyst types
-   */
+    * Convert RDD of Row into RDD of InternalRow with objects in catalyst types
+    */
   private[this] def toCatalystRDD(relation: LogicalRelation, rdd: RDD[Row]): RDD[InternalRow] = {
     toCatalystRDD(relation, relation.output, rdd)
   }
@@ -432,10 +437,10 @@ case class DataSourceStrategy(conf: SQLConf) extends Strategy with Logging with 
 
 object DataSourceStrategy {
   /**
-   * Tries to translate a Catalyst [[Expression]] into data source [[Filter]].
-   *
-   * @return a `Some[Filter]` if the input [[Expression]] is convertible, otherwise a `None`.
-   */
+    * Tries to translate a Catalyst [[Expression]] into data source [[Filter]].
+    *
+    * @return a `Some[Filter]` if the input [[Expression]] is convertible, otherwise a `None`.
+    */
   protected[sql] def translateFilter(predicate: Expression): Option[Filter] = {
     predicate match {
       case expressions.EqualTo(a: Attribute, Literal(v, t)) =>
@@ -523,18 +528,18 @@ object DataSourceStrategy {
   }
 
   /**
-   * Selects Catalyst predicate [[Expression]]s which are convertible into data source [[Filter]]s
-   * and can be handled by `relation`.
-   *
-   * @return A triplet of `Seq[Expression]`, `Seq[Filter]`, and `Seq[Filter]` . The first element
-   *         contains all Catalyst predicate [[Expression]]s that are either not convertible or
-   *         cannot be handled by `relation`. The second element contains all converted data source
-   *         [[Filter]]s that will be pushed down to the data source. The third element contains
-   *         all [[Filter]]s that are completely filtered at the DataSource.
-   */
+    * Selects Catalyst predicate [[Expression]]s which are convertible into data source [[Filter]]s
+    * and can be handled by `relation`.
+    *
+    * @return A triplet of `Seq[Expression]`, `Seq[Filter]`, and `Seq[Filter]` . The first element
+    *         contains all Catalyst predicate [[Expression]]s that are either not convertible or
+    *         cannot be handled by `relation`. The second element contains all converted data source
+    *         [[Filter]]s that will be pushed down to the data source. The third element contains
+    *         all [[Filter]]s that are completely filtered at the DataSource.
+    */
   protected[sql] def selectFilters(
-      relation: BaseRelation,
-      predicates: Seq[Expression]): (Seq[Expression], Seq[Filter], Set[Filter]) = {
+                                    relation: BaseRelation,
+                                    predicates: Seq[Expression]): (Seq[Expression], Seq[Filter], Set[Filter]) = {
 
     // For conciseness, all Catalyst filter expressions of type `expressions.Expression` below are
     // called `predicate`s, while all data source filters of type `sources.Filter` are simply called
