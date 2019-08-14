@@ -31,17 +31,17 @@ import org.apache.spark.unsafe.array.ByteArrayMethods;
  * for each incoming record, we should call `reset` of BufferHolder instance before write the record
  * and reuse the data buffer.
  */
-final class BufferHolder {
+public  class BufferHolder {
 
   private static final int ARRAY_MAX = ByteArrayMethods.MAX_ROUNDED_ARRAY_LENGTH;
 
   // buffer is guarantee to be word-aligned since UnsafeRow assumes each field is word-aligned.
-  private byte[] buffer;
+  public byte[] buffer;
   private int cursor = Platform.BYTE_ARRAY_OFFSET;
   private final UnsafeRow row;
   private final int fixedSize;
 
-  BufferHolder(UnsafeRow row) {
+  public BufferHolder(UnsafeRow row) {
     this(row, 64);
   }
 
@@ -101,11 +101,11 @@ final class BufferHolder {
     cursor += val;
   }
 
-  void reset() {
+  public void reset() {
     cursor = Platform.BYTE_ARRAY_OFFSET + fixedSize;
   }
 
-  int totalSize() {
+  public int totalSize() {
     return cursor - Platform.BYTE_ARRAY_OFFSET;
   }
 }

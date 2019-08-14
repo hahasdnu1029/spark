@@ -316,10 +316,15 @@ case class MapFromArrays(left: Expression, right: Expression)
  */
 case object NamePlaceholder extends LeafExpression with Unevaluable {
   override lazy val resolved: Boolean = false
+
   override def foldable: Boolean = false
+
   override def nullable: Boolean = false
+
   override def dataType: DataType = StringType
+
   override def prettyName: String = "NamePlaceholder"
+
   override def toString: String = prettyName
 }
 
@@ -477,7 +482,8 @@ case class CreateNamedStructUnsafe(children: Seq[Expression]) extends CreateName
 // scalastyle:off line.size.limit
 @ExpressionDescription(
   usage = "_FUNC_(text[, pairDelim[, keyValueDelim]]) - Creates a map after splitting the text into key/value pairs using delimiters. Default delimiters are ',' for `pairDelim` and ':' for `keyValueDelim`.",
-  examples = """
+  examples =
+    """
     Examples:
       > SELECT _FUNC_('a:1,b:2,c:3', ',', ':');
        map("a":"1","b":"2","c":"3")
@@ -503,7 +509,7 @@ case class StringToMap(text: Expression, pairDelim: Expression, keyValueDelim: E
   override def dataType: DataType = MapType(StringType, StringType)
 
   override def checkInputDataTypes(): TypeCheckResult = {
-    if (Seq(pairDelim, keyValueDelim).exists(! _.foldable)) {
+    if (Seq(pairDelim, keyValueDelim).exists(!_.foldable)) {
       TypeCheckResult.TypeCheckFailure(s"$prettyName's delimiters must be foldable.")
     } else {
       super.checkInputDataTypes()
@@ -511,9 +517,9 @@ case class StringToMap(text: Expression, pairDelim: Expression, keyValueDelim: E
   }
 
   override def nullSafeEval(
-      inputString: Any,
-      stringDelimiter: Any,
-      keyValueDelimiter: Any): Any = {
+                             inputString: Any,
+                             stringDelimiter: Any,
+                             keyValueDelimiter: Any): Any = {
     val keyValues =
       inputString.asInstanceOf[UTF8String].split(stringDelimiter.asInstanceOf[UTF8String], -1)
 

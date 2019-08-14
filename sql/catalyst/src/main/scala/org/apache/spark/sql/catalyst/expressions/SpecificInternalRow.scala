@@ -17,61 +17,68 @@
 
 package org.apache.spark.sql.catalyst.expressions
 
+import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.types._
 
 /**
- * A parent class for mutable container objects that are reused when the values are changed,
- * resulting in less garbage.  These values are held by a [[SpecificInternalRow]].
- *
- * The following code was roughly used to generate these objects:
- * {{{
- * val types = "Int,Float,Boolean,Double,Short,Long,Byte,Any".split(",")
- * types.map {tpe =>
- * s"""
- * final class Mutable$tpe extends MutableValue {
- *   var value: $tpe = 0
- *   def boxed = if (isNull) null else value
- *   def update(v: Any) = value = {
- *     isNull = false
- *     v.asInstanceOf[$tpe]
- *   }
- *   def copy() = {
- *     val newCopy = new Mutable$tpe
- *     newCopy.isNull = isNull
- *     newCopy.value = value
- *     newCopy
- *   }
- * }"""
- * }.foreach(println)
- *
- * types.map { tpe =>
- * s"""
- *   override def set$tpe(ordinal: Int, value: $tpe): Unit = {
- *     val currentValue = values(ordinal).asInstanceOf[Mutable$tpe]
- *     currentValue.isNull = false
- *     currentValue.value = value
- *   }
- *
- *   override def get$tpe(i: Int): $tpe = {
- *     values(i).asInstanceOf[Mutable$tpe].value
- *   }"""
- * }.foreach(println)
- * }}}
- */
+  * A parent class for mutable container objects that are reused when the values are changed,
+  * resulting in less garbage.  These values are held by a [[SpecificInternalRow]].
+  *
+  * The following code was roughly used to generate these objects:
+  * {{{
+  * val types = "Int,Float,Boolean,Double,Short,Long,Byte,Any".split(",")
+  * types.map {tpe =>
+  * s"""
+  * final class Mutable$tpe extends MutableValue {
+  *   var value: $tpe = 0
+  *   def boxed = if (isNull) null else value
+  *   def update(v: Any) = value = {
+  *     isNull = false
+  *     v.asInstanceOf[$tpe]
+  *   }
+  *   def copy() = {
+  *     val newCopy = new Mutable$tpe
+  *     newCopy.isNull = isNull
+  *     newCopy.value = value
+  *     newCopy
+  *   }
+  * }"""
+  * }.foreach(println)
+  *
+  * types.map { tpe =>
+  * s"""
+  *   override def set$tpe(ordinal: Int, value: $tpe): Unit = {
+  *     val currentValue = values(ordinal).asInstanceOf[Mutable$tpe]
+  *     currentValue.isNull = false
+  *     currentValue.value = value
+  *   }
+  *
+  *   override def get$tpe(i: Int): $tpe = {
+  *     values(i).asInstanceOf[Mutable$tpe].value
+  *   }"""
+  * }.foreach(println)
+  * }}}
+  */
 abstract class MutableValue extends Serializable {
   var isNull: Boolean = true
+
   def boxed: Any
+
   def update(v: Any): Unit
+
   def copy(): MutableValue
 }
 
 final class MutableInt extends MutableValue {
   var value: Int = 0
+
   override def boxed: Any = if (isNull) null else value
+
   override def update(v: Any): Unit = {
     isNull = false
     value = v.asInstanceOf[Int]
   }
+
   override def copy(): MutableInt = {
     val newCopy = new MutableInt
     newCopy.isNull = isNull
@@ -82,11 +89,14 @@ final class MutableInt extends MutableValue {
 
 final class MutableFloat extends MutableValue {
   var value: Float = 0
+
   override def boxed: Any = if (isNull) null else value
+
   override def update(v: Any): Unit = {
     isNull = false
     value = v.asInstanceOf[Float]
   }
+
   override def copy(): MutableFloat = {
     val newCopy = new MutableFloat
     newCopy.isNull = isNull
@@ -97,11 +107,14 @@ final class MutableFloat extends MutableValue {
 
 final class MutableBoolean extends MutableValue {
   var value: Boolean = false
+
   override def boxed: Any = if (isNull) null else value
+
   override def update(v: Any): Unit = {
     isNull = false
     value = v.asInstanceOf[Boolean]
   }
+
   override def copy(): MutableBoolean = {
     val newCopy = new MutableBoolean
     newCopy.isNull = isNull
@@ -112,11 +125,14 @@ final class MutableBoolean extends MutableValue {
 
 final class MutableDouble extends MutableValue {
   var value: Double = 0
+
   override def boxed: Any = if (isNull) null else value
+
   override def update(v: Any): Unit = {
     isNull = false
     value = v.asInstanceOf[Double]
   }
+
   override def copy(): MutableDouble = {
     val newCopy = new MutableDouble
     newCopy.isNull = isNull
@@ -127,11 +143,14 @@ final class MutableDouble extends MutableValue {
 
 final class MutableShort extends MutableValue {
   var value: Short = 0
+
   override def boxed: Any = if (isNull) null else value
+
   override def update(v: Any): Unit = value = {
     isNull = false
     v.asInstanceOf[Short]
   }
+
   override def copy(): MutableShort = {
     val newCopy = new MutableShort
     newCopy.isNull = isNull
@@ -142,11 +161,14 @@ final class MutableShort extends MutableValue {
 
 final class MutableLong extends MutableValue {
   var value: Long = 0
+
   override def boxed: Any = if (isNull) null else value
+
   override def update(v: Any): Unit = value = {
     isNull = false
     v.asInstanceOf[Long]
   }
+
   override def copy(): MutableLong = {
     val newCopy = new MutableLong
     newCopy.isNull = isNull
@@ -157,11 +179,14 @@ final class MutableLong extends MutableValue {
 
 final class MutableByte extends MutableValue {
   var value: Byte = 0
+
   override def boxed: Any = if (isNull) null else value
+
   override def update(v: Any): Unit = value = {
     isNull = false
     v.asInstanceOf[Byte]
   }
+
   override def copy(): MutableByte = {
     val newCopy = new MutableByte
     newCopy.isNull = isNull
@@ -172,11 +197,14 @@ final class MutableByte extends MutableValue {
 
 final class MutableAny extends MutableValue {
   var value: Any = _
+
   override def boxed: Any = if (isNull) null else value
+
   override def update(v: Any): Unit = {
     isNull = false
     value = v.asInstanceOf[Any]
   }
+
   override def copy(): MutableAny = {
     val newCopy = new MutableAny
     newCopy.isNull = isNull
@@ -186,10 +214,10 @@ final class MutableAny extends MutableValue {
 }
 
 /**
- * A row type that holds an array specialized container objects, of type [[MutableValue]], chosen
- * based on the dataTypes of each column.  The intent is to decrease garbage when modifying the
- * values of primitive columns.
- */
+  * A row type that holds an array specialized container objects, of type [[MutableValue]], chosen
+  * based on the dataTypes of each column.  The intent is to decrease garbage when modifying the
+  * values of primitive columns.
+  */
 final class SpecificInternalRow(val values: Array[MutableValue]) extends BaseGenericInternalRow {
 
   def this(dataTypes: Seq[DataType]) =
@@ -227,6 +255,17 @@ final class SpecificInternalRow(val values: Array[MutableValue]) extends BaseGen
     } else {
       values(ordinal).update(value)
     }
+  }
+
+  override def copy(): GenericInternalRow = {
+    val len = numFields
+    val newValues = new Array[Any](len)
+    var i = 0
+    while (i < len) {
+      newValues(i) = InternalRow.copyValue(genericGet(i))
+      i += 1
+    }
+    new GenericInternalRow(newValues)
   }
 
   override def setInt(ordinal: Int, value: Int): Unit = {

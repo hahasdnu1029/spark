@@ -33,6 +33,7 @@ import org.apache.spark.network.util.ByteUnit
 import org.apache.spark.sql.catalyst.analysis.Resolver
 import org.apache.spark.sql.catalyst.expressions.CodegenObjectFactoryMode
 import org.apache.spark.sql.catalyst.expressions.codegen.CodeGenerator
+import org.apache.spark.sql.catalyst.vector.RowBatch
 import org.apache.spark.unsafe.array.ByteArrayMethods
 import org.apache.spark.util.Utils
 
@@ -1565,10 +1566,10 @@ object SQLConf {
       .createWithDefault(false)
 
   val VECTORIZE_BATCH_CAPACITY =
-    buildConf("spark.sql.vectorize.batch.capacity")
+    buildConf(RowBatch.SPARK_SQL_VECTORIZE_BATCH_CAPACITY)
       .doc("the default capacity for a RowBatch")
       .intConf
-      .createWithDefault(1024)
+      .createWithDefault(RowBatch.DEFAULT_CAPACITY)
 
   val VECTORIZE_SORT_BATCH_CAPACITY =
     buildConf("spark.sql.vectorize.sort.batch.capacity")

@@ -302,6 +302,7 @@ case class FileSourceScanExec(
     withSelectedBucketsCount
   }
 
+  // 真正的数据读取
   private lazy val inputRDD: RDD[InternalRow] = {
     // Update metrics for taking effect in both code generation node and normal node.
     updateDriverMetrics()

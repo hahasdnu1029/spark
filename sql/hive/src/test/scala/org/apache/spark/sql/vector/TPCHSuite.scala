@@ -57,12 +57,12 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
   test("Sort") {
     withSQLConf(
       SQLConf.VECTORIZE_ENABLED.key -> "true",
-      SQLConf.VECTORIZE_AGG_ENABLED.key -> "true",
-      SQLConf.VECTORIZE_SHUFFLE_ENABLED.key -> "true",
+      SQLConf.VECTORIZE_AGG_ENABLED.key -> "false",
+      SQLConf.VECTORIZE_SHUFFLE_ENABLED.key -> "false",
       SQLConf.VECTORIZE_SORT_ENABLED.key -> "true",
-      SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "true",
-      SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
-      SQLConf.VECTORIZE_BATCH_SORT_USE4.key -> "true",
+      SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "false",
+      SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "false",
+      SQLConf.VECTORIZE_BATCH_SORT_USE4.key -> "false",
       SQLConf.COLUMN_BATCH_SIZE.key -> "40960") {
       import spark.sqlContext.implicits._
 

@@ -83,7 +83,7 @@ class QueryExecution(val sparkSession: SparkSession, val logical: LogicalPlan) {
   /**
    * Prepares a planned [[SparkPlan]] for execution by inserting shuffle operations and internal
    * row format conversions as needed.
-    * 将一批规则运用在SparkPlan上，规则在preprations中，报错WholeStageCodegen的CollapseCodegenStages规则
+    * 将一批规则运用在SparkPlan上，规则在preprations中，包括WholeStageCodegen的CollapseCodegenStages规则
    */
   protected def prepareForExecution(plan: SparkPlan): SparkPlan = {
     preparations.foldLeft(plan) { case (sp, rule) => rule.apply(sp) }
@@ -95,7 +95,9 @@ class QueryExecution(val sparkSession: SparkSession, val logical: LogicalPlan) {
     EnsureRequirements(sparkSession.sessionState.conf),
     CollapseCodegenStages(sparkSession.sessionState.conf),// WholeStageCodegen的规则
     ReuseExchange(sparkSession.sessionState.conf),
-    ReuseSubquery(sparkSession.sessionState.conf))
+    ReuseSubquery(sparkSession.sessionState.conf),
+    EnsureRowFormats,
+    SetParentForOperator)
 
   protected def stringOrError[A](f: => A): String =
     try f.toString catch { case e: AnalysisException => e.toString }

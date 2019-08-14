@@ -17,18 +17,15 @@
 
 package org.apache.spark.sql.catalyst.expressions
 
-import java.util.UUID
-
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.expressions.codegen._
 import org.apache.spark.sql.catalyst.expressions.codegen.Block._
+import org.apache.spark.sql.catalyst.expressions.codegen._
 import org.apache.spark.sql.catalyst.util.RandomUUIDGenerator
 import org.apache.spark.sql.types._
-import org.apache.spark.unsafe.types.UTF8String
 
 /**
- * Print the result of an expression to stderr (used for debugging codegen).
- */
+  * Print the result of an expression to stderr (used for debugging codegen).
+  */
 case class PrintToStderr(child: Expression) extends UnaryExpression {
 
   override def dataType: DataType = child.dataType
@@ -53,11 +50,24 @@ case class PrintToStderr(child: Expression) extends UnaryExpression {
 }
 
 /**
- * A function throws an exception if 'condition' is not true.
- */
+  * Concat children value into UnsafeRow
+  */
+case class V2R(children: Seq[Expression]) extends Expression with Unevaluable {
+  override def nullable: Boolean = children.forall(_.nullable)
+
+  override def dataType: DataType = StructType(
+    children.zipWithIndex.map { case (e, i) =>
+      StructField(s"_$i", e.dataType, e.nullable)
+    })
+}
+
+/**
+  * A function throws an exception if 'condition' is not true.
+  */
 @ExpressionDescription(
   usage = "_FUNC_(expr) - Throws an exception if `expr` is not true.",
-  examples = """
+  examples =
+    """
     Examples:
       > SELECT _FUNC_(0 < 1);
        NULL
@@ -74,7 +84,7 @@ case class AssertTrue(child: Expression) extends UnaryExpression with ImplicitCa
 
   private val errMsg = s"'${child.simpleString}' is not true!"
 
-  override def eval(input: InternalRow) : Any = {
+  override def eval(input: InternalRow): Any = {
     val v = child.eval(input)
     if (v == null || java.lang.Boolean.FALSE.equals(v)) {
       throw new RuntimeException(errMsg)
@@ -89,10 +99,11 @@ case class AssertTrue(child: Expression) extends UnaryExpression with ImplicitCa
     // Use unnamed reference that doesn't create a local field here to reduce the number of fields
     // because errMsgField is used only when the value is null or false.
     val errMsgField = ctx.addReferenceObj("errMsg", errMsg)
-    ExprCode(code = code"""${eval.code}
-       |if (${eval.isNull} || !${eval.value}) {
-       |  throw new RuntimeException($errMsgField);
-       |}""".stripMargin, isNull = TrueLiteral,
+    ExprCode(code =
+      code"""${eval.code}
+            |if (${eval.isNull}|| !${eval.value}) {
+            |  throw new RuntimeException($errMsgField);
+            |}""".stripMargin, isNull = TrueLiteral,
       value = JavaCode.defaultLiteral(dataType))
   }
 
@@ -100,26 +111,31 @@ case class AssertTrue(child: Expression) extends UnaryExpression with ImplicitCa
 }
 
 /**
- * Returns the current database of the SessionCatalog.
- */
+  * Returns the current database of the SessionCatalog.
+  */
 @ExpressionDescription(
   usage = "_FUNC_() - Returns the current database.",
-  examples = """
+  examples =
+    """
     Examples:
       > SELECT _FUNC_();
        default
   """)
 case class CurrentDatabase() extends LeafExpression with Unevaluable {
   override def dataType: DataType = StringType
+
   override def foldable: Boolean = true
+
   override def nullable: Boolean = false
+
   override def prettyName: String = "current_database"
 }
 
 // scalastyle:off line.size.limit
 @ExpressionDescription(
   usage = """_FUNC_() - Returns an universally unique identifier (UUID) string. The value is returned as a canonical UUID 36-character string.""",
-  examples = """
+  examples =
+    """
     Examples:
       > SELECT _FUNC_();
        46707d92-02f4-4817-8116-a4c3b23e6266
@@ -127,7 +143,7 @@ case class CurrentDatabase() extends LeafExpression with Unevaluable {
   note = "The function is non-deterministic.")
 // scalastyle:on line.size.limit
 case class Uuid(randomSeed: Option[Long] = None) extends LeafExpression with Stateful
-    with ExpressionWithRandomSeed {
+  with ExpressionWithRandomSeed {
 
   def this() = this(None)
 

@@ -221,6 +221,7 @@ class BarrierTaskContext private[spark] (
   }
 
   override private[spark] def getLocalProperties: Properties = taskContext.getLocalProperties
+
 }
 
 @Experimental

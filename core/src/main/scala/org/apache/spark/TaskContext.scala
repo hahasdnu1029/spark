@@ -72,12 +72,12 @@ object TaskContext {
 
 
 /**
- * Contextual information about a task which can be read or mutated during
- * execution. To access the TaskContext for a running task, use:
- * {{{
- *   org.apache.spark.TaskContext.get()
- * }}}
- */
+  * Contextual information about a task which can be read or mutated during
+  * execution. To access the TaskContext for a running task, use:
+  * {{{
+  *   org.apache.spark.TaskContext.get()
+  * }}}
+  */
 abstract class TaskContext extends Serializable {
   // Note: TaskContext must NOT define a get method. Otherwise it will prevent the Scala compiler
   // from generating a static get method (based on the companion object's get method).

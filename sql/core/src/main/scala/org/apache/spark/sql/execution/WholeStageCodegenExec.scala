@@ -612,7 +612,7 @@ case class WholeStageCodegenExec(child: SparkPlan)(val codegenStageId: Int)
     // 通过doCodeGen去生成代码
     val (ctx, cleanedSource) = doCodeGen()
     //打印源码
-    print(cleanedSource.body)
+//    print(cleanedSource.body)
     // 对生成的代码进行编译，如果编译失败，走原来的执行逻辑，调用child.execute()
     // 编译返回的是编译生成的字节码和字节码的大小
     // try to compile and fallback if it failed
@@ -651,6 +651,7 @@ case class WholeStageCodegenExec(child: SparkPlan)(val codegenStageId: Int)
         val (clazz, _) = CodeGenerator.compile(cleanedSource)
         // 返回的是GeneratedIterator类对象
         val buffer = clazz.generate(references).asInstanceOf[BufferedRowIterator]
+        // 先调用init方法进行初始化
         buffer.init(index, Array(iter))
         new Iterator[InternalRow] {
           override def hasNext: Boolean = {
