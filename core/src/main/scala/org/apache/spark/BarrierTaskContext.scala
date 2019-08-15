@@ -221,6 +221,10 @@ class BarrierTaskContext private[spark] (
   }
 
   override private[spark] def getLocalProperties: Properties = taskContext.getLocalProperties
+
+  override def setMemoryConsumer(operatorId: Int, consumer: Any): Unit = ???
+
+  override def getMemoryConsumer(operatorId: Int): Any = ???
 }
 
 @Experimental

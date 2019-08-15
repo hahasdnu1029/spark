@@ -28,7 +28,9 @@ import org.apache.spark.metrics.source.CodegenMetrics
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.expressions.codegen.Block._
+import org.apache.spark.sql.catalyst.expressions.vector.BatchExpression
 import org.apache.spark.sql.catalyst.util.{ArrayData, GenericArrayData, MapData}
+import org.apache.spark.sql.catalyst.vector.RowBatch
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.Platform
@@ -52,7 +54,7 @@ import scala.util.control.NonFatal
   *               It should be empty string, if `isNull` and `value` are already existed, or no code
   *               needed to evaluate them (literals).
   * @param isNull A term that holds a boolean value representing whether the expression evaluated
-  *               to null.
+  *               to null.[表示该表达式的计算结果是否为null]
   * @param value  A term for a (possibly primitive) value of the result of the evaluation. Not
   *               valid if `isNull` is set to `true`.
   */
@@ -73,6 +75,16 @@ object ExprCode {
 }
 
 /**
+  * Java source for evaluating an [[vector.BatchExpression]] given a [[RowBatch]] of input.
+  *
+  * @param code The sequence of statements required to evaluate the expression.
+  * @param value A term for a (possibly primitive) value of the result of the evaluation.
+  */
+case class GeneratedBatchExpressionCode(var code: String, var value: String)
+
+
+
+/**
   * State used for subexpression elimination.
   *
   * @param isNull A term that holds a boolean value representing whether the expression evaluated
@@ -81,6 +93,9 @@ object ExprCode {
   *               is set to `true`.
   */
 case class SubExprEliminationState(isNull: ExprValue, value: ExprValue)
+
+// State used for batch expressions' subexpr elimination
+case class SubBExprEliminationState(value: String)
 
 /**
   * Codes and common subexpressions mapping used for subexpression elimination.
@@ -122,6 +137,36 @@ class CodegenContext {
     case StringType => "String"
     case _ => throw new UnsupportedOperationException(s"$dt not supported yet")
   }
+
+  def getMethodName(dt: DataType): String = s"get${typeName(dt)}"
+
+  def putMethodName(dt: DataType): String = s"put${typeName(dt)}"
+
+  def newVector(capacity: String, dt: DataType, ctx: CodegenContext = null): String = dt match {
+    case IntegerType => s"OnColumnVector.genIntCV($capacity)"
+    case LongType => s"OnColumnVector.genLongCV($capacity)"
+    case DoubleType => s"OnColumnVector.genDoubleCV($capacity)"
+    case StringType => s"OnColumnVector.genStringCV($capacity)"
+    case _: StructType => s"OnColumnVector.genUnsafeRowColumnVector(" +
+      s"$capacity, references[${ctx.references.size - 1}].dataType())"
+    case _ => throw new UnsupportedOperationException(s"$dt not supported yet")
+  }
+
+  def newOffVector(capacity: String, dt: DataType, ctx: CodegenContext = null): String = dt match {
+    case IntegerType => s"OffColumnVector.genIntCV($capacity)"
+    case LongType => s"OffColumnVector.genLongCV($capacity)"
+    case DoubleType => s"OffColumnVector.genDoubleCV($capacity)"
+    case StringType => s"OffColumnVector.genStringCV($capacity)"
+    case _ => throw new UnsupportedOperationException(s"$dt not supported yet")
+  }
+
+
+  private var _batchCapacity: Int = 0
+
+  def getBatchCapacity: Int = _batchCapacity
+
+  def setBatchCapacity(newCapacity: Int): Unit = _batchCapacity = newCapacity
+
   /**
     * Holding a list of objects that could be used passed into generated class.
     * 保存用于生成类对象的参数列表
@@ -157,6 +202,12 @@ class CodegenContext {
     * 我们需要将currentVars设置为null或者currentVars(i)设置某些列为null
     */
   var INPUT_ROW = "i"
+
+  var INPUT_ROWBATCH = "rb"
+
+  final val BUFFERS = "buffers"
+
+  private val curId = new java.util.concurrent.atomic.AtomicInteger()
 
   /**
     * Holding a list of generated columns as input of current operator, will be used by
@@ -419,6 +470,9 @@ class CodegenContext {
 
   // Foreach expression that is participating in subexpression elimination, the state to use.
   var subExprEliminationExprs = Map.empty[Expression, SubExprEliminationState]
+
+  // Foreach expression that is participating in subexpression elimination, the state to use.
+  val subBExprEliminationExprs = mutable.HashMap.empty[BatchExpression, SubBExprEliminationState]
 
   // The collection of sub-expression result resetting methods that need to be called on each row.
   val subexprFunctions = mutable.ArrayBuffer.empty[String]
@@ -1277,7 +1331,7 @@ object CodeGenerator extends Logging {
     evaluator.setParentClassLoader(parentClassLoader)
     // Cannot be under package codegen, or fail with java.lang.InstantiationException
     evaluator.setClassName("org.apache.spark.sql.catalyst.expressions.GeneratedClass")
-     // 某人倒入的类
+    // 某人倒入的类
     evaluator.setDefaultImports(
       classOf[Platform].getName,
       classOf[InternalRow].getName,

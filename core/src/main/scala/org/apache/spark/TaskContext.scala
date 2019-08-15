@@ -235,4 +235,8 @@ abstract class TaskContext extends Serializable {
 
   /** Gets local properties set upstream in the driver. */
   private[spark] def getLocalProperties: Properties
+
+  def setMemoryConsumer(operatorId: Int, consumer: Any): Unit
+
+  def getMemoryConsumer(operatorId: Int): Any
 }

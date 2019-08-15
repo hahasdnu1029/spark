@@ -177,4 +177,21 @@ private[spark] class TaskContextImpl(
   private[spark] override def fetchFailed: Option[FetchFailedException] = _fetchFailedException
 
   private[spark] override def getLocalProperties(): Properties = localProperties
+
+  @volatile private var operatorToConsumer: Array[Any] = null
+
+  override def setMemoryConsumer(operatorId: Int, consumer: Any): Unit = {
+    if (operatorToConsumer == null) {
+      operatorToConsumer = new Array[Any](512)
+    }
+    operatorToConsumer(operatorId) = consumer
+  }
+
+  override def getMemoryConsumer(operatorId: Int): Any = {
+    if (operatorId >= 0 && operatorId < operatorToConsumer.length) {
+      operatorToConsumer(operatorId)
+    } else {
+      null
+    }
+  }
 }

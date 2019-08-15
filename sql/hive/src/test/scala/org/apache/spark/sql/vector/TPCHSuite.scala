@@ -17,6 +17,7 @@
 
 package org.apache.spark.sql.vector
 
+import org.apache.commons.logging.impl.Log4JLogger
 import org.apache.spark.sql.execution.SparkPlan
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.hive.test.TestHiveSingleton
@@ -65,7 +66,6 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       SQLConf.VECTORIZE_BATCH_SORT_USE4.key -> "true",
       SQLConf.COLUMN_BATCH_SIZE.key -> "40960") {
       import spark.sqlContext.implicits._
-
       //      val sortColumns = (0 until 1).map(i => randIntGau(i, 1000000).as(s"s_$i"))
       val sortColumns = (0 until 1).map(i => rand(100000000).as(s"s_$i"))
       val otherColumns = (0 until 3).map(i => ($"id").as(s"o_$i"))
@@ -79,7 +79,6 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       result.show(100, false)
     }
   }
-
   test("Agg") {
     withSQLConf(
       SQLConf.VECTORIZE_ENABLED.key -> "true",

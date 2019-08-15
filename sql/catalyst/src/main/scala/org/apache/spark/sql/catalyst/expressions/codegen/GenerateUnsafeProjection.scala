@@ -287,8 +287,10 @@ object GenerateUnsafeProjection extends CodeGenerator[Seq[Expression], UnsafePro
       expressions: Seq[Expression],
       useSubexprElimination: Boolean = false): ExprCode = {
 
+    // 生成表达式的代码
     val exprEvals = ctx.generateExpressions(expressions, useSubexprElimination)
 
+    // 表达式的schema信息
     val exprSchemas = expressions.map(e => Schema(e.dataType, e.nullable))
 
 
@@ -360,6 +362,7 @@ object GenerateUnsafeProjection extends CodeGenerator[Seq[Expression], UnsafePro
          |  }
          |
          |  // Scala.Function1 need this
+         |
          |  public java.lang.Object apply(java.lang.Object row) {
          |    return apply((InternalRow) row);
          |  }

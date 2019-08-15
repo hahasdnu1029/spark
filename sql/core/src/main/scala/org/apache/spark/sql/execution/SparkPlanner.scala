@@ -44,7 +44,7 @@ class SparkPlanner(
       Window ::
       JoinSelection ::
       InMemoryScans ::
-      BasicOperators :: Nil)
+      BasicOperators(conf) :: Nil)
 
   /**
    * Override to add extra planning strategies to the planner. These strategies are tried after

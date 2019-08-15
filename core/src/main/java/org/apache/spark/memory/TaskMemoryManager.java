@@ -17,23 +17,16 @@
 
 package org.apache.spark.memory;
 
-import javax.annotation.concurrent.GuardedBy;
-import java.io.IOException;
-import java.nio.channels.ClosedByInterruptException;
-import java.util.Arrays;
-import java.util.ArrayList;
-import java.util.BitSet;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
-
 import com.google.common.annotations.VisibleForTesting;
+import org.apache.spark.unsafe.memory.MemoryBlock;
+import org.apache.spark.util.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.spark.unsafe.memory.MemoryBlock;
-import org.apache.spark.util.Utils;
+import javax.annotation.concurrent.GuardedBy;
+import java.io.IOException;
+import java.nio.channels.ClosedByInterruptException;
+import java.util.*;
 
 /**
  * Manages the memory allocated by an individual task.
@@ -452,6 +445,15 @@ public class TaskMemoryManager {
    */
   public long getMemoryConsumptionForThisTask() {
     return memoryManager.getExecutionMemoryUsageForTask(taskAttemptId);
+  }
+
+  public static long getAllocateGranularity(long batchSize) {
+    return getNumBatchPerAllocation(batchSize) * batchSize;
+  }
+
+  public static long getNumBatchPerAllocation(long batchSize) {
+    long rawGranularity = 16 * 1024 * 1024;
+    return (rawGranularity / batchSize) + 1;
   }
 
   /**

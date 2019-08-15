@@ -33,6 +33,7 @@ import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.expressions.codegen.{Predicate => GenPredicate, _}
 import org.apache.spark.sql.catalyst.plans.QueryPlan
 import org.apache.spark.sql.catalyst.plans.physical._
+import org.apache.spark.sql.catalyst.vector.RowBatch
 import org.apache.spark.sql.execution.metric.SQLMetric
 import org.apache.spark.sql.types.DataType
 import org.apache.spark.util.ThreadUtils
@@ -52,6 +53,9 @@ abstract class SparkPlan extends QueryPlan[SparkPlan] with Logging with Serializ
   @transient final val sqlContext = SparkSession.getActiveSession.map(_.sqlContext).orNull
 
   protected def sparkContext = sqlContext.sparkContext
+
+  /** Specifies whether this operator outputs UnsafeRows */
+  def outputsUnsafeRows: Boolean = false
 
   /** Specifies whether this operator is capable of processing UnsafeRows */
   def canProcessUnsafeRows: Boolean = false
@@ -241,6 +245,43 @@ abstract class SparkPlan extends QueryPlan[SparkPlan] with Logging with Serializ
     * Overridden by concrete implementations of SparkPlan.
     */
   protected def doExecute(): RDD[InternalRow]
+
+
+  var shouldReuseRowBatch: Boolean = true
+
+  final def batchExecute(): RDD[RowBatch] = {
+    if (children.nonEmpty) {
+      val hasRowInput = children.exists(_.outputsRowBatches)
+      val hasRowBatchInput = children.exists(!_.outputsRowBatches)
+      assert(!(hasRowInput && hasRowBatchInput),
+        "Child operators should output rows or batches")
+      // TODO: more checks here
+    }
+    RDDOperationScope.withScope(sparkContext, nodeName, false, true) {
+      prepare()
+      doBatchExecute()
+    }
+  }
+
+  protected def doBatchExecute(): RDD[RowBatch] = new EmptyRDD[RowBatch](sparkContext)
+
+  private var parent: SparkPlan = null
+
+  def setParent(p: SparkPlan): Unit = {
+    this.parent = p
+  }
+
+  def getParent(): SparkPlan = parent
+
+  def getParentId(): Int = if (parent != null) parent.getId() else -1
+
+  private var _id: Int = 0
+
+  def setId(id: Int): Unit = {
+    _id = id
+  }
+
+  def getId(): Int = _id
 
   /**
     * Produces the result of the query as a broadcast variable.

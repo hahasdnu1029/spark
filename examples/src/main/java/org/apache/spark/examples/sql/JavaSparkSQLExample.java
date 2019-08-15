@@ -96,7 +96,7 @@ public class JavaSparkSQLExample {
 
     runBasicDataFrameExample(spark);
     runDatasetCreationExample(spark);
-    runInferSchemaExample(spark);
+//    runInferSchemaExample(spark);
     runProgrammaticSchemaExample(spark);
 
     spark.stop();
@@ -212,7 +212,7 @@ public class JavaSparkSQLExample {
     person.setAge(32);
 
     // Encoders are created for Java beans
-    Encoder<Person> personEncoder = Encoders.bean(Person.class);
+    Encoder<Person> personEncoder = (Encoder<Person>) Encoders.bean(Person.class);
     Dataset<Person> javaBeanDS = spark.createDataset(
       Collections.singletonList(person),
       personEncoder
@@ -246,7 +246,7 @@ public class JavaSparkSQLExample {
     // $example off:create_ds$
   }
 
-  private static void runInferSchemaExample(SparkSession spark) {
+/*  private static void runInferSchemaExample(SparkSession spark) {
     // $example on:schema_inferring$
     // Create an RDD of Person objects from a text file
     JavaRDD<Person> peopleRDD = spark.read()
@@ -291,7 +291,7 @@ public class JavaSparkSQLExample {
     // |Name: Justin|
     // +------------+
     // $example off:schema_inferring$
-  }
+  }*/
 
   private static void runProgrammaticSchemaExample(SparkSession spark) {
     // $example on:programmatic_schema$
@@ -312,7 +312,7 @@ public class JavaSparkSQLExample {
     StructType schema = DataTypes.createStructType(fields);
 
     // Convert records of the RDD (people) to Rows
-    JavaRDD<Row> rowRDD = peopleRDD.map((Function<String, Row>) record -> {
+    JavaRDD<Row> rowRDD = (JavaRDD<Row>) peopleRDD.map((Function<String, Row>) record -> {
       String[] attributes = record.split(",");
       return RowFactory.create(attributes[0], attributes[1].trim());
     });
