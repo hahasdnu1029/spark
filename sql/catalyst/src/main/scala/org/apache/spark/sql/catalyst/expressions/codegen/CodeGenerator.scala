@@ -24,13 +24,14 @@ import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.google.common.util.concurrent.{ExecutionError, UncheckedExecutionException}
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark.internal.Logging
+import org.apache.spark.memory.{MemoryConsumer, MemoryMode, TaskMemoryManager}
 import org.apache.spark.metrics.source.CodegenMetrics
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.expressions.codegen.Block._
 import org.apache.spark.sql.catalyst.expressions.vector.BatchExpression
 import org.apache.spark.sql.catalyst.util.{ArrayData, GenericArrayData, MapData}
-import org.apache.spark.sql.catalyst.vector.RowBatch
+import org.apache.spark.sql.catalyst.vector.{ColumnVector, OffColumnVector, OnColumnVector, RowBatch}
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.Platform
@@ -77,11 +78,10 @@ object ExprCode {
 /**
   * Java source for evaluating an [[vector.BatchExpression]] given a [[RowBatch]] of input.
   *
-  * @param code The sequence of statements required to evaluate the expression.
+  * @param code  The sequence of statements required to evaluate the expression.
   * @param value A term for a (possibly primitive) value of the result of the evaluation.
   */
 case class GeneratedBatchExpressionCode(var code: String, var value: String)
-
 
 
 /**
@@ -1237,8 +1237,9 @@ class CodeAndComment(val body: String, val comment: collection.Map[String, Strin
   */
 abstract class CodeGenerator[InType <: AnyRef, OutType <: AnyRef] extends Logging {
 
-  protected val genericMutableRowType: String = classOf[GenericInternalRow].getName
-
+  protected val exprType: String = classOf[Expression].getName
+  protected val mutableRowType: String = classOf[MutableRow].getName
+  protected val genericMutableRowType: String = classOf[GenericMutableRow].getName
   /**
     * Generates a class for a given input expression.  Called when there is not cached code
     * already available.
@@ -1346,7 +1347,15 @@ object CodeGenerator extends Logging {
       classOf[Expression].getName,
       classOf[TaskContext].getName,
       classOf[TaskKilledException].getName,
-      classOf[InputMetrics].getName
+      classOf[InputMetrics].getName,
+      classOf[MutableRow].getName,
+      classOf[RowBatch].getName,
+      classOf[ColumnVector].getName,
+      classOf[OnColumnVector].getName,
+      classOf[OffColumnVector].getName,
+      classOf[TaskMemoryManager].getName,
+      classOf[MemoryConsumer].getName,
+      classOf[MemoryMode].getName
     )
     evaluator.setExtendedClass(classOf[GeneratedClass])
 
@@ -1355,7 +1364,8 @@ object CodeGenerator extends Logging {
       evaluator.setDebuggingInformation(true, true, false)
       s"\n${CodeFormatter.format(code)}"
     })
-
+    println("==========================================================")
+    println(code.body)
     val maxCodeSize = try {
       // cook函数真正的对代码进行编译
       evaluator.cook("generated.java", code.body)

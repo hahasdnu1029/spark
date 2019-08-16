@@ -45,6 +45,7 @@ public class RowBatch implements Serializable {
   public ColumnVector[] columns;
   public ColumnVectorSerDeHelper[] buffers;
 
+  // 保存的待排序的行索引
   public int[] sorted; // array of sorted row indices
   public boolean sortedInUse; // if sorted is valid
   public int startIdx;

@@ -148,7 +148,7 @@ object GenerateBatchOrdering extends CodeGenerator[Seq[SortOrder], BatchOrdering
         ${ctx.declareAddedFunctions()}
 
         public SpecificBatchOrdering(Object[] references) {
-          this.references = references;
+          this.references=references;
           ${ctx.initMutableStates()}
         }
 
@@ -167,7 +167,6 @@ object GenerateBatchOrdering extends CodeGenerator[Seq[SortOrder], BatchOrdering
     val code = CodeFormatter.stripOverlappingComments(
       new CodeAndComment(codeBody, ctx.getPlaceHolderToComments()))
     logDebug(s"Generated BatchOrdering by ${in.mkString(",")}:\n${CodeFormatter.format(code)}")
-    println("===========================BatchOrderingCode===========================================")
     val (clazz, _) = CodeGenerator.compile(code)
     clazz.generate(ctx.references.toArray).asInstanceOf[BatchOrdering]
   }

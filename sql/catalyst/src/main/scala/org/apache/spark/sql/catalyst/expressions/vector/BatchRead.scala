@@ -22,6 +22,7 @@ import java.nio.channels.ReadableByteChannel
 
 import org.apache.spark.sql.catalyst.expressions.{Attribute, Expression}
 import org.apache.spark.sql.catalyst.expressions.codegen.{CodeAndComment, CodeFormatter, CodeGenerator}
+import org.apache.spark.sql.catalyst.expressions.vector.GenerateBatchOrdering.exprType
 import org.apache.spark.sql.catalyst.expressions.vector.GenerateBatchWrite.logDebug
 import org.apache.spark.sql.catalyst.vector.{ColumnVectorSerDeHelper, RowBatch}
 import org.apache.spark.sql.types._

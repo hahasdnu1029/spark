@@ -72,11 +72,11 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       val sortColumnNames = (0 until 1).map(i => s"s_$i")
 
       val result =
-        spark.sqlContext.range(0, 30000000L, 1, 1)
+        spark.sqlContext.range(0, 1000L, 1, 1)
           .select(sortColumns ++ otherColumns : _*)
           .sortWithinPartitions(sortColumnNames.head, sortColumnNames.tail : _*)
       result.explain(true)
-      result.show(100, false)
+      result.show(1000, false)
     }
   }
   test("Agg") {

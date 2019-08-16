@@ -74,6 +74,7 @@ private[spark] class DiskBlockObjectWriter(
   private var initialized = false
   private var streamOpen = false
   private var hasBeenClosed = false
+  private var commitAndCloseHasBeenCalled = false
 
   /**
    * Cursors used to represent positions in the file.
@@ -91,6 +92,7 @@ private[spark] class DiskBlockObjectWriter(
    */
   private var committedPosition = file.length()
   private var reportedPosition = committedPosition
+  private var finalPosition: Long = -1
 
   /**
    * Keep track of number of records written and also use this to periodically
@@ -121,6 +123,27 @@ private[spark] class DiskBlockObjectWriter(
     objOut = serializerInstance.serializeStream(bs)
     streamOpen = true
     this
+  }
+
+  def isOpen: Boolean = objOut != null
+
+  /**
+    * Flush the partial writes and commit them as a single atomic block.
+    */
+  def commitAndClose(): Unit = {
+    if (initialized) {
+      // NOTE: Because Kryo doesn't flush the underlying stream we explicitly flush both the
+      //       serializer stream and the lower level stream.
+      objOut.flush()
+      bs.flush()
+      close()
+      finalPosition = file.length()
+      // In certain compression codecs, more bytes are written after close() is called
+      writeMetrics.incBytesWritten(finalPosition - reportedPosition)
+    } else {
+      finalPosition = file.length()
+    }
+    commitAndCloseHasBeenCalled = true
   }
 
   /**
@@ -245,6 +268,17 @@ private[spark] class DiskBlockObjectWriter(
 
   override def write(b: Int): Unit = throw new UnsupportedOperationException()
 
+  def writeIntBE(i: Int): Unit = {
+    if (!initialized) {
+      open()
+    }
+    bs.write((i >>> 24) & 0xFF)
+    bs.write((i >>> 16) & 0xFF)
+    bs.write((i >>> 8) & 0xFF)
+    bs.write((i >>> 0) & 0xFF)
+  }
+
+
   override def write(kvBytes: Array[Byte], offs: Int, len: Int): Unit = {
     if (!streamOpen) {
       open()
@@ -273,6 +307,17 @@ private[spark] class DiskBlockObjectWriter(
     val pos = channel.position()
     writeMetrics.incBytesWritten(pos - reportedPosition)
     reportedPosition = pos
+  }
+  /**
+    * Returns the file segment of committed data that this Writer has written.
+    * This is only valid after commitAndClose() has been called.
+    */
+  def fileSegment(): FileSegment = {
+    if (!commitAndCloseHasBeenCalled) {
+      throw new IllegalStateException(
+        "fileSegment() is only valid after commitAndClose() has been called")
+    }
+    new FileSegment(file, committedPosition, finalPosition - committedPosition)
   }
 
   // For testing

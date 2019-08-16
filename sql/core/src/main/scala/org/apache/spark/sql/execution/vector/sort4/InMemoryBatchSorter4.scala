@@ -63,11 +63,13 @@ case class InMemoryBatchSorter4(
   }
 
   def insertBatch(rb: RowBatch): Unit = {
+    // sortedBatches是一个大的ArrayBuffer，里面存的sortedRowBatch
     sortedBatches += rb
     batchCount += 1
     totalSize += rb.size
 
     if (allocated <= 0) {
+      // 如果allocated<0，进行内存的申请，每次申请16M
       taskMemoryManager.acquireExecutionMemory(allocateGranularity,consumer)
       consumer.addUsed(allocateGranularity)
       allocated = allocateGranularity

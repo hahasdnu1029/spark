@@ -39,7 +39,7 @@ class ExternalBatchSorter4(
     interBatchComparator: InterBatchOrdering,
     schema: Seq[Attribute],
     defaultCapacity: Int)
-  extends MemoryConsumer(taskMemoryManager, taskMemoryManager.pageSizeBytes, MemoryMode.OFF_HEAP) with Logging {
+  extends MemoryConsumer(taskMemoryManager, taskMemoryManager.pageSizeBytes, MemoryMode.ON_HEAP) with Logging {
 
   val spillWriters = mutable.ArrayBuffer.empty[RowBatchSpillWriter]
 
@@ -79,12 +79,15 @@ class ExternalBatchSorter4(
   val reorderer = GenerateBatchReorderer.generate(schema, defaultCapacity)
 
   def insertBatch(rb: RowBatch): Unit = {
+    // 申请内存
     acquireMemory()
+    // 重新组织RowBatch，此时RowBatch还在缓存中，early materilization
     val sortedRB = RowBatch.create2(schemaArray, defaultCapacity, MemoryMode.OFF_HEAP)
     sortedRB.capacity = rb.capacity
     sortedRB.size = rb.size
     sortedRB.endOfFile = rb.endOfFile
     reorderer.copy(rb, sortedRB)
+    // 把重新组织的Batch插入到里面去
     inMemoryBatchSorter.insertBatch(sortedRB)
   }
 
@@ -108,7 +111,7 @@ class ExternalBatchSorter4(
     }
   }
 
-
+  // 当内存满了，刷内存
   override def spill(size: Long, trigger: MemoryConsumer): Long = {
     if (trigger != this) {
       if (readingIterator != null) {
@@ -124,10 +127,12 @@ class ExternalBatchSorter4(
     logInfo(s"Thread ${Thread.currentThread.getId} spilling sort data of " +
       s"${Utils.bytesToString(getMemoryUsage())} to disk (${spillWriters.size} times so far)")
 
+    //  numBatches存在时RowBatchSpillWriter进行刷磁盘
     if (inMemoryBatchSorter.numBatches() > 0) {
       val spillWriter: RowBatchSpillWriter =
         new RowBatchSpillWriter(blockManager, writeMetrics, schema, defaultCapacity)
       spillWriters += spillWriter
+      // 进行merge后写磁盘，最后还分成Bacth粒度写
       val sortedBatches: RowBatchSorterIterator = inMemoryBatchSorter.getSortedIterator()
       while (sortedBatches.hasNext) {
         sortedBatches.loadNext()

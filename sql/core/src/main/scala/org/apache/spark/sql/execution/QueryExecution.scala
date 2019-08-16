@@ -33,12 +33,12 @@ import org.apache.spark.sql.types.{BinaryType, DateType, DecimalType, TimestampT
 import org.apache.spark.util.Utils
 
 /**
- * The primary workflow for executing relational queries using Spark.  Designed to allow easy
- * access to the intermediate phases of query execution for developers.
- *
- * While this is not a public class, we should avoid changing the function names for the sake of
- * changing them, because a lot of developers use the feature for debugging.
- */
+  * The primary workflow for executing relational queries using Spark.  Designed to allow easy
+  * access to the intermediate phases of query execution for developers.
+  *
+  * While this is not a public class, we should avoid changing the function names for the sake of
+  * changing them, because a lot of developers use the feature for debugging.
+  */
 class QueryExecution(val sparkSession: SparkSession, val logical: LogicalPlan) {
 
   // TODO: Move the planner an optimizer into here from SessionState.
@@ -81,10 +81,10 @@ class QueryExecution(val sparkSession: SparkSession, val logical: LogicalPlan) {
   lazy val toRdd: RDD[InternalRow] = executedPlan.execute()
 
   /**
-   * Prepares a planned [[SparkPlan]] for execution by inserting shuffle operations and internal
-   * row format conversions as needed.
+    * Prepares a planned [[SparkPlan]] for execution by inserting shuffle operations and internal
+    * row format conversions as needed.
     * 将一批规则运用在SparkPlan上，规则在preprations中，报错WholeStageCodegen的CollapseCodegenStages规则
-   */
+    */
   protected def prepareForExecution(plan: SparkPlan): SparkPlan = {
     preparations.foldLeft(plan) { case (sp, rule) => rule.apply(sp) }
   }
@@ -93,18 +93,23 @@ class QueryExecution(val sparkSession: SparkSession, val logical: LogicalPlan) {
   protected def preparations: Seq[Rule[SparkPlan]] = Seq(
     PlanSubqueries(sparkSession),
     EnsureRequirements(sparkSession.sessionState.conf),
-    CollapseCodegenStages(sparkSession.sessionState.conf),// WholeStageCodegen的规则
+    CollapseCodegenStages(sparkSession.sessionState.conf), // WholeStageCodegen的规则
     ReuseExchange(sparkSession.sessionState.conf),
-    ReuseSubquery(sparkSession.sessionState.conf))
+    ReuseSubquery(sparkSession.sessionState.conf),
+    EnsureRowFormats,
+    SetParentForOperator,
+    PropagateCapacity(sparkSession.sqlContext))
 
   protected def stringOrError[A](f: => A): String =
-    try f.toString catch { case e: AnalysisException => e.toString }
+    try f.toString catch {
+      case e: AnalysisException => e.toString
+    }
 
 
   /**
-   * Returns the result as a hive compatible sequence of strings. This is used in tests and
-   * `SparkSQLDriver` for CLI applications.
-   */
+    * Returns the result as a hive compatible sequence of strings. This is used in tests and
+    * `SparkSQLDriver` for CLI applications.
+    */
   def hiveResultString(): Seq[String] = executedPlan match {
     case ExecutedCommandExec(desc: DescribeTableCommand) =>
       // If it is a describe command for a Hive table, we want to have the output format
@@ -117,7 +122,7 @@ class QueryExecution(val sparkSession: SparkSession, val logical: LogicalPlan) {
             .mkString("\t")
       }
     // SHOW TABLES in Hive only output table names, while ours output database, table name, isTemp.
-    case command @ ExecutedCommandExec(s: ShowTablesCommand) if !s.isExtended =>
+    case command@ExecutedCommandExec(s: ShowTablesCommand) if !s.isExtended =>
       command.executeCollect().map(_.getString(1))
     case other =>
       val result: Seq[Seq[Any]] = other.executeCollectPublic().map(_.toSeq).toSeq
@@ -194,6 +199,7 @@ class QueryExecution(val sparkSession: SparkSession, val logical: LogicalPlan) {
   override def toString: String = withRedaction {
     def output = Utils.truncatedString(
       analyzed.output.map(o => s"${o.name}: ${o.dataType.simpleString}"), ", ")
+
     val analyzedPlan = Seq(
       stringOrError(output),
       stringOrError(analyzed.treeString(verbose = true))
@@ -216,15 +222,15 @@ class QueryExecution(val sparkSession: SparkSession, val logical: LogicalPlan) {
 
     // only show optimized logical plan and physical plan
     s"""== Optimized Logical Plan ==
-        |${stringOrError(optimizedPlan.treeString(verbose = true, addSuffix = true))}
-        |== Physical Plan ==
-        |${stringOrError(executedPlan.treeString(verbose = true))}
+       |${stringOrError(optimizedPlan.treeString(verbose = true, addSuffix = true))}
+       |== Physical Plan ==
+       |${stringOrError(executedPlan.treeString(verbose = true))}
     """.stripMargin.trim
   }
 
   /**
-   * Redact the sensitive information in the given string.
-   */
+    * Redact the sensitive information in the given string.
+    */
   private def withRedaction(message: String): String = {
     Utils.redact(sparkSession.sessionState.conf.stringRedactionPattern, message)
   }
@@ -232,12 +238,12 @@ class QueryExecution(val sparkSession: SparkSession, val logical: LogicalPlan) {
   /** A special namespace for commands that can be used to debug query execution. */
   // scalastyle:off
   object debug {
-  // scalastyle:on
+    // scalastyle:on
 
     /**
-     * Prints to stdout all the generated code found in this plan (i.e. the output of each
-     * WholeStageCodegen subtree).
-     */
+      * Prints to stdout all the generated code found in this plan (i.e. the output of each
+      * WholeStageCodegen subtree).
+      */
     def codegen(): Unit = {
       // scalastyle:off println
       println(org.apache.spark.sql.execution.debug.codegenString(executedPlan))
@@ -245,12 +251,13 @@ class QueryExecution(val sparkSession: SparkSession, val logical: LogicalPlan) {
     }
 
     /**
-     * Get WholeStageCodegenExec subtrees and the codegen in a query plan
-     *
-     * @return Sequence of WholeStageCodegen subtrees and corresponding codegen
-     */
+      * Get WholeStageCodegenExec subtrees and the codegen in a query plan
+      *
+      * @return Sequence of WholeStageCodegen subtrees and corresponding codegen
+      */
     def codegenToSeq(): Seq[(String, String)] = {
       org.apache.spark.sql.execution.debug.codegenStringSeq(executedPlan)
     }
   }
+
 }

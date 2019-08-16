@@ -22,7 +22,7 @@ package object vector {
   def exprToBatch(expr: Expression): BatchExpression = {
     expr match {
 //      case l: Literal => BatchLiteral(l)
-//      case b: BoundReference => BatchBoundReference(b)
+        case b: BoundReference => BatchBoundReference(b)
 //      case a: Alias => exprToBatch(a.child)
 //
 //      case a @ Add(l, r) => BatchAdd(exprToBatch(l), exprToBatch(r), a)

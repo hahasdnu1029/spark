@@ -55,8 +55,7 @@ case class RowBatchSpillWriter(
   }
 
   def close(): Unit = {
-    // write.commitAndClose()
-    writer.close()
+    writer.commitAndClose()
     writer = null
   }
 

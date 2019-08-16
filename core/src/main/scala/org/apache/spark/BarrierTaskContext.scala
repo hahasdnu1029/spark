@@ -222,9 +222,22 @@ class BarrierTaskContext private[spark] (
 
   override private[spark] def getLocalProperties: Properties = taskContext.getLocalProperties
 
-  override def setMemoryConsumer(operatorId: Int, consumer: Any): Unit = ???
+  @volatile private var operatorToConsumer: Array[Any] = null
 
-  override def getMemoryConsumer(operatorId: Int): Any = ???
+  override def setMemoryConsumer(operatorId: Int, consumer: Any): Unit = {
+    if (operatorToConsumer == null) {
+      operatorToConsumer = new Array[Any](512)
+    }
+    operatorToConsumer(operatorId) = consumer
+  }
+
+  override def getMemoryConsumer(operatorId: Int): Any = {
+    if (operatorId >= 0 && operatorId < operatorToConsumer.length) {
+      operatorToConsumer(operatorId)
+    } else {
+      null
+    }
+  }
 }
 
 @Experimental

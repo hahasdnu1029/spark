@@ -75,6 +75,16 @@ abstract class SparkPlan extends QueryPlan[SparkPlan] with Logging with Serializ
   /** Specifies whether this operator is capable of processing Rows/UnsafeRows */
   def canProcessRows: Boolean = canProcessSafeRows || canProcessUnsafeRows
 
+  def originResultCapacity: Int = RowBatch.DEFAULT_CAPACITY
+
+  def resultCapacity: Int = _defaultBatchCapacity
+
+  var _defaultBatchCapacity: Int = RowBatch.DEFAULT_CAPACITY
+
+  def setDefaultBatchCapacity(newCapacity: Int): Unit = {
+    _defaultBatchCapacity = newCapacity
+  }
+
   // sqlContext will be null when SparkPlan nodes are created without the active sessions.
   val subexpressionEliminationEnabled: Boolean = if (sqlContext != null) {
     sqlContext.conf.subexpressionEliminationEnabled

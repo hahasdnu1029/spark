@@ -34,6 +34,8 @@ case class ExternalRowBatchSorter4(
   val sparkEnv: SparkEnv = SparkEnv.get
   val taskContext: TaskContext = TaskContext.get
 
+
+  // 创建ExternalBatchSorter4，继承自MemoryConsumer，制定了使用OFF_Heap Memory
   val sorter: ExternalBatchSorter4 = new ExternalBatchSorter4(
     taskContext.taskMemoryManager,
     sparkEnv.blockManager,
@@ -53,20 +55,26 @@ case class ExternalRowBatchSorter4(
     def compare(i1: Int, i2: Int): Int = innerBatchComparator.compare(i1, i2)
   }
 
+  // 插入一个RowBatch
   def insertBatch(rb: RowBatch): Unit = {
 
+    // 先对这个RowBatch进行内部排序
     innerBatchComparator.reset(rb)
     rb.sort(innerBatchCmp)
-
+    println("=========insertBatch之前==========")
+    //再插入
     sorter.insertBatch(rb)
     numBatchesInserted += 1
 
     if (testSpillFrequency > 0 && (numBatchesInserted % testSpillFrequency) == 0) {
+      // 每次插入完检测是否需要spill，需要则进行spill
+      println("============进入spill===========")
       sorter.spill()
     }
   }
 
   def sort(iter: Iterator[RowBatch]): Iterator[RowBatch] = {
+    // 一条一条插入，传入的是RowBatch
     while (iter.hasNext) {
       insertBatch(iter.next())
     }

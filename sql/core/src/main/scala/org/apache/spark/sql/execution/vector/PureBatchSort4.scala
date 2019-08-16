@@ -42,34 +42,46 @@ case class PureBatchSort4(
                            child: SparkPlan,
                            testSpillFrequency: Int = 0) extends UnaryExecNode {
 
+  // 是否输出UnsafeRow？===》false
   override def outputsUnsafeRows: Boolean = false
 
+  // 是否能够处理UnsafeRow？====》false
   override def canProcessUnsafeRows: Boolean = false
 
+  // 是否能处理SafeRow？=====》false
   override def canProcessSafeRows: Boolean = false
 
+  // 是否能处理RowBatch？=====》true
   override def canProcessRowBatches: Boolean = true
 
+  // 输出RowBatch====》true
   override def outputsRowBatches: Boolean = true
 
+  // 输出属性(schema)和子类一样
   override def output: Seq[Attribute] = child.output
 
+  // outputOrdering=sortOder[这个表达式没有绑定schema]
   override def outputOrdering: Seq[SortOrder] = sortOrder
 
+  // 是否进行Distribution
   override def requiredChildDistribution: Seq[Distribution] =
     if (global) OrderedDistribution(sortOrder) :: Nil else UnspecifiedDistribution :: Nil
 
+  // metrics信息(sortTime,peakMemory,spillSize)
   override val metrics = Map(
     "sortTime" -> SQLMetrics.createTimingMetric(sparkContext, "sort time"),
     "peakMemory" -> SQLMetrics.createSizeMetric(sparkContext, "peak memory"),
+    "dataSize" -> SQLMetrics.createSizeMetric(sparkContext, "data size"),
     "spillSize" -> SQLMetrics.createSizeMetric(sparkContext, "spill size"))
 
+  // 默认的Batch容量
   private val defaultBatchCapacity: Int = sqlContext.conf.vectorizedBatchCapacity
 
   override protected def doBatchExecute(): RDD[RowBatch] = {
     val childOutput = child.output
     val sortTime = longMetric("sortTime")
     val peakMemory = longMetric("peakMemory")
+    val dataSize = longMetric("dataSize")
     val spillSize = longMetric("spillSize")
 
     child.batchExecute().mapPartitionsInternal { iter =>
@@ -80,8 +92,10 @@ case class PureBatchSort4(
       val interBatchComparator = GenerateInterBatchOrdering.generate(
         sortOrder, childOutput, defaultBatchCapacity)
 
+      // 创建ExternalRowBatchSorter4
       val sorter = new ExternalRowBatchSorter4(
         childOutput, defaultBatchCapacity, innerBatchComparator, interBatchComparator)
+
 
       if (testSpillFrequency > 0) {
         sorter.setTestSpillFrequency(testSpillFrequency)
@@ -92,8 +106,9 @@ case class PureBatchSort4(
       // sort执行之前spill的数据量
       val spillSizeBefore = metrics.memoryBytesSpilled
 
+      // 这里指定了task memory consumer
       TaskContext.get().setMemoryConsumer(this.getId(), sorter.sorter)
-      // 排序逻辑
+      // 排序逻辑,返回的Iterator[RowBatch]
       val sortedIterator = sorter.sort(iter)
       // spill的数据量
       spillSize += metrics.memoryBytesSpilled - spillSizeBefore
