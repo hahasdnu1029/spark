@@ -119,6 +119,7 @@ object GenerateInterBatchOrdering extends CodeGenerator[Seq[SortOrder], InterBat
     val code = CodeFormatter.stripOverlappingComments(
       new CodeAndComment(codeBody, ctx.getPlaceHolderToComments()))
     logDebug(s"Generated InterBatchOrdering by ${in.mkString(",")}:\n${CodeFormatter.format(code)}")
+    println(code.body)
     val (clazz, _) = CodeGenerator.compile(code)
     clazz.generate(ctx.references.toArray).asInstanceOf[InterBatchOrdering]
   }

@@ -1364,8 +1364,6 @@ object CodeGenerator extends Logging {
       evaluator.setDebuggingInformation(true, true, false)
       s"\n${CodeFormatter.format(code)}"
     })
-    println("==========================================================")
-    println(code.body)
     val maxCodeSize = try {
       // cook函数真正的对代码进行编译
       evaluator.cook("generated.java", code.body)

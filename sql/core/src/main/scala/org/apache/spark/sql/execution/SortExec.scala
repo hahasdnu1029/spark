@@ -110,7 +110,7 @@ case class SortExec(
       peakMemory += sorter.getPeakMemoryUsage
       spillSize += metrics.memoryBytesSpilled - spillSizeBefore
       metrics.incPeakExecutionMemory(sorter.getPeakMemoryUsage)
-
+     println("========sort==================")
       sortedIterator
     }
   }

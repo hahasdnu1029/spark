@@ -58,11 +58,11 @@ case class ExternalRowBatchSorter4(
   // 插入一个RowBatch
   def insertBatch(rb: RowBatch): Unit = {
 
-    // 先对这个RowBatch进行内部排序
     innerBatchComparator.reset(rb)
+    // 先对这个RowBatch进行内部排序
     rb.sort(innerBatchCmp)
     println("=========insertBatch之前==========")
-    //再插入
+    //ExternalBatchSorter4(MemoryConsumer)内存插入
     sorter.insertBatch(rb)
     numBatchesInserted += 1
 

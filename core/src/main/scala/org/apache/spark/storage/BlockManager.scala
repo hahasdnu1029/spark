@@ -957,6 +957,24 @@ private[spark] class BlockManager(
   }
 
   /**
+    * A short circuited method to get a block writer that can write data directly to disk.
+    * The Block will be appended to the File specified by filename. Callers should handle error
+    * cases.
+    */
+  def getDiskWriter2(
+                     blockId: BlockId,
+                     file: File,
+                     serializerInstance: SerializerInstance,
+                     bufferSize: Int,
+                     writeMetrics: ShuffleWriteMetrics): DiskBlockObjectWriter2 = {
+    val compressStream: OutputStream => OutputStream = wrapForCompression(blockId, _)
+    val syncWrites = conf.getBoolean("spark.shuffle.sync", false)
+    new DiskBlockObjectWriter2(file, serializerInstance, bufferSize, compressStream,
+      syncWrites, writeMetrics, blockId)
+  }
+
+
+  /**
     * Put a new block of serialized bytes to the block manager.
     *
     * '''Important!''' Callers must not mutate or release the data buffer underlying `bytes`. Doing

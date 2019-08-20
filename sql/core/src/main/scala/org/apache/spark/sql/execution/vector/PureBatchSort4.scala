@@ -71,17 +71,16 @@ case class PureBatchSort4(
   override val metrics = Map(
     "sortTime" -> SQLMetrics.createTimingMetric(sparkContext, "sort time"),
     "peakMemory" -> SQLMetrics.createSizeMetric(sparkContext, "peak memory"),
-    "dataSize" -> SQLMetrics.createSizeMetric(sparkContext, "data size"),
     "spillSize" -> SQLMetrics.createSizeMetric(sparkContext, "spill size"))
 
   // 默认的Batch容量
   private val defaultBatchCapacity: Int = sqlContext.conf.vectorizedBatchCapacity
 
   override protected def doBatchExecute(): RDD[RowBatch] = {
+    setDefaultBatchCapacity(sqlContext.conf.vectorizedBatchCapacity)
     val childOutput = child.output
     val sortTime = longMetric("sortTime")
     val peakMemory = longMetric("peakMemory")
-    val dataSize = longMetric("dataSize")
     val spillSize = longMetric("spillSize")
 
     child.batchExecute().mapPartitionsInternal { iter =>
@@ -96,7 +95,7 @@ case class PureBatchSort4(
       val sorter = new ExternalRowBatchSorter4(
         childOutput, defaultBatchCapacity, innerBatchComparator, interBatchComparator)
 
-
+      println("=======BatchSort============")
       if (testSpillFrequency > 0) {
         sorter.setTestSpillFrequency(testSpillFrequency)
       }

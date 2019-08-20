@@ -39,7 +39,7 @@ class ExternalBatchSorter4(
     interBatchComparator: InterBatchOrdering,
     schema: Seq[Attribute],
     defaultCapacity: Int)
-  extends MemoryConsumer(taskMemoryManager, taskMemoryManager.pageSizeBytes, MemoryMode.ON_HEAP) with Logging {
+  extends MemoryConsumer(taskMemoryManager, taskMemoryManager.pageSizeBytes, MemoryMode.OFF_HEAP) with Logging {
 
   val spillWriters = mutable.ArrayBuffer.empty[RowBatchSpillWriter]
 
@@ -72,7 +72,10 @@ class ExternalBatchSorter4(
     if (getAllocated() >= estimatedBatchSize) {
       minusAllocated(estimatedBatchSize);
     } else {
-      acquireMemory(allocateGranularity)
+      taskMemoryManager.acquireExecutionMemory(
+        allocateGranularity,this);
+      addUsed(allocateGranularity);
+      setAllocated(allocateGranularity - estimatedBatchSize);
     }
   }
 

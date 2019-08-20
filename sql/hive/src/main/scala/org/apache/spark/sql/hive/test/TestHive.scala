@@ -50,10 +50,12 @@ import org.apache.spark.util.{ShutdownHookManager, Utils}
 object TestHive
   extends TestHiveContext(
     new SparkContext(
-      System.getProperty("spark.sql.test.master", "local[1]"),
+      System.getProperty("spark.sql.test.master", "local[8]"),
       "TestSQLContext",
       new SparkConf()
         .set("spark.sql.test", "")
+        .set("spark.memory.offHeap.enabled", "true")
+        .set("spark.memory.offHeap.size", "512mb")
         .set(SQLConf.CODEGEN_FALLBACK.key, "false")
         .set("spark.sql.hive.metastore.barrierPrefixes",
           "org.apache.spark.sql.hive.execution.PairSerDe")

@@ -41,7 +41,9 @@ case class AssembleToRowBatch(child: SparkPlan) extends UnaryExecNode {
   override def doBatchExecute(): RDD[RowBatch] = {
     child.execute().mapPartitionsInternal { iter =>
       val schema = child.output.map(_.dataType)
-      val rb = RowBatch.create(schema.toArray, defaultBatchCapacity)
+      println(s"==========${getParent().nodeName}===========")
+      println(s"==========${getParent()._defaultBatchCapacity}===========")
+      val rb = RowBatch.create(schema.toArray, getParent()._defaultBatchCapacity)
       val rbCapacity = rb.capacity
 
       val specificInserter = GenerateRowInserter.generate(output, defaultBatchCapacity)

@@ -74,7 +74,7 @@ case class InMemoryBatchSorter4(
       consumer.addUsed(allocateGranularity)
       allocated = allocateGranularity
     }
-
+    // rb.size[存具体的列数据，每个数据4Byte]+2[1个存放列null的数目，1个存放null的位置]，3*16[行数，列数，列null的数目]
     val arraySize = (rb.size + 2) * 4 + (if (firstTime) {firstTime = false; 3 * 16} else 0)
     if (allocated > arraySize) {
       allocated -= arraySize
@@ -169,6 +169,7 @@ case class InMemoryBatchSorter4(
   def getSortedIterator(): RowBatchSorterIterator = {
     if (totalSize == 0) return EmptyRowBatchSorterIterator
 
+    // 多个Batch的部分merge
     sort()
 
     new RowBatchSorterIterator {

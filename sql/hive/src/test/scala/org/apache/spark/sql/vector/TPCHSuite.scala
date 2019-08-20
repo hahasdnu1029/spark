@@ -42,7 +42,7 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
     withSQLConf(
       SQLConf.VECTORIZE_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
-      SQLConf.COLUMN_BATCH_SIZE.key -> "24576") {
+      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "24576") {
       import spark.sqlContext.implicits._
 
       val result =
@@ -64,21 +64,25 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BATCH_SORT_USE4.key -> "true",
-      SQLConf.COLUMN_BATCH_SIZE.key -> "40960") {
+      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "4096") {
       import spark.sqlContext.implicits._
+
+
       //      val sortColumns = (0 until 1).map(i => randIntGau(i, 1000000).as(s"s_$i"))
       val sortColumns = (0 until 1).map(i => rand(100000000).as(s"s_$i"))
       val otherColumns = (0 until 3).map(i => ($"id").as(s"o_$i"))
       val sortColumnNames = (0 until 1).map(i => s"s_$i")
 
       val result =
-        spark.sqlContext.range(0, 1000L, 1, 1)
+        spark.sqlContext.range(0, 100000, 1, 1)
           .select(sortColumns ++ otherColumns : _*)
           .sortWithinPartitions(sortColumnNames.head, sortColumnNames.tail : _*)
       result.explain(true)
-      result.show(1000, false)
+      result.show(800, false)
     }
   }
+
+
   test("Agg") {
     withSQLConf(
       SQLConf.VECTORIZE_ENABLED.key -> "true",
@@ -86,7 +90,7 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       SQLConf.VECTORIZE_HM_CAPACITY.key -> "65536",
       SQLConf.VECTORIZE_HM_USELP.key -> "true",
       SQLConf.VECTORIZE_HM_LOAD_FACTOR.key -> "0.5",
-      SQLConf.COLUMN_BATCH_SIZE.key -> "1024") {
+      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "1024") {
       import spark.sqlContext.implicits._
 
       val grpColumns = (0 until 2).map(i => rand( 3).as(s"g_$i"))
@@ -111,12 +115,14 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
 
   test("Query 1") {
     withSQLConf(
-      SQLConf.VECTORIZE_ENABLED.key -> "false",
-      SQLConf.VECTORIZE_AGG_ENABLED.key -> "false",
-      SQLConf.VECTORIZE_HM_USEORIGIN.key -> "false",
-      SQLConf.VECTORIZE_SHUFFLE_ENABLED.key -> "false",
-      SQLConf.VECTORIZE_SORT_ENABLED.key -> "false",
-      SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "false") {
+      SQLConf.VECTORIZE_ENABLED.key -> "true",
+      SQLConf.VECTORIZE_AGG_ENABLED.key -> "true",
+      SQLConf.VECTORIZE_SHUFFLE_ENABLED.key -> "true",
+      SQLConf.VECTORIZE_SORT_ENABLED.key -> "true",
+      SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "true",
+      SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
+      SQLConf.VECTORIZE_BATCH_SORT_USE4.key -> "true",
+      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "4096") {
       import spark.sqlContext.implicits._
 
       val result =
@@ -146,7 +152,7 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BATCH_SORT_USE2.key -> "true",
-      SQLConf.COLUMN_BATCH_SIZE.key -> "40960",
+      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "40960",
       SQLConf.VECTORIZE_SMJ_ENABLED.key -> "true") {
       import spark.sqlContext.implicits._
 
@@ -178,12 +184,14 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
 
   test("Query 3") {
     withSQLConf(
-      SQLConf.VECTORIZE_ENABLED.key -> "false",
-      SQLConf.VECTORIZE_AGG_ENABLED.key -> "false",
-      SQLConf.VECTORIZE_SHUFFLE_ENABLED.key -> "false",
-      SQLConf.VECTORIZE_SORT_ENABLED.key -> "false",
+      SQLConf.VECTORIZE_ENABLED.key -> "true",
+      SQLConf.VECTORIZE_AGG_ENABLED.key -> "true",
+      SQLConf.VECTORIZE_SHUFFLE_ENABLED.key -> "true",
+      SQLConf.VECTORIZE_SORT_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "true",
-      SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "false") {
+      SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
+      SQLConf.VECTORIZE_BATCH_SORT_USE4.key -> "true",
+      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "4096") {
       import spark.sqlContext.implicits._
 
       lazy val cust = customer.filter('c_mktsegment === "BUILDING")
@@ -213,9 +221,8 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       SQLConf.VECTORIZE_SORT_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
-      SQLConf.VECTORIZE_BATCH_SORT_USE2.key -> "true",
-      SQLConf.COLUMN_BATCH_SIZE.key -> "40960",
-      SQLConf.VECTORIZE_SMJ_ENABLED.key -> "true") {
+      SQLConf.VECTORIZE_BATCH_SORT_USE4.key -> "true",
+      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "4096") {
       import spark.sqlContext.implicits._
 
       lazy val ord = orders.filter('o_orderdate.between("1993-07-01", "1993-09-30"))
@@ -241,7 +248,7 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BATCH_SORT_USE2.key -> "true",
-      SQLConf.COLUMN_BATCH_SIZE.key -> "40960",
+      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "40960",
       SQLConf.VECTORIZE_SMJ_ENABLED.key -> "true") {
       import spark.sqlContext.implicits._
 
@@ -273,7 +280,7 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BATCH_SORT_USE2.key -> "true",
-      SQLConf.COLUMN_BATCH_SIZE.key -> "40960",
+      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "40960",
       SQLConf.VECTORIZE_SMJ_ENABLED.key -> "true") {
       import spark.sqlContext.implicits._
 
@@ -300,7 +307,7 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BATCH_SORT_USE2.key -> "true",
-      SQLConf.COLUMN_BATCH_SIZE.key -> "40960",
+      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "40960",
       SQLConf.VECTORIZE_SMJ_ENABLED.key -> "true") {
       import spark.sqlContext.implicits._
 
@@ -344,7 +351,7 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BATCH_SORT_USE2.key -> "true",
-      SQLConf.COLUMN_BATCH_SIZE.key -> "40960",
+      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "40960",
       SQLConf.VECTORIZE_SMJ_ENABLED.key -> "true") {
       import spark.sqlContext.implicits._
 
@@ -388,7 +395,7 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BATCH_SORT_USE2.key -> "true",
-      SQLConf.COLUMN_BATCH_SIZE.key -> "40960",
+      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "40960",
       SQLConf.VECTORIZE_SMJ_ENABLED.key -> "true") {
       import spark.sqlContext.implicits._
 
@@ -421,7 +428,7 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BATCH_SORT_USE2.key -> "true",
-      SQLConf.COLUMN_BATCH_SIZE.key -> "40960",
+      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "40960",
       SQLConf.VECTORIZE_SMJ_ENABLED.key -> "true") {
       import spark.sqlContext.implicits._
 
@@ -451,7 +458,7 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BATCH_SORT_USE2.key -> "true",
-      SQLConf.COLUMN_BATCH_SIZE.key -> "40960",
+      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "40960",
       SQLConf.VECTORIZE_SMJ_ENABLED.key -> "true") {
       import spark.sqlContext.implicits._
 
@@ -484,7 +491,7 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BATCH_SORT_USE2.key -> "true",
-      SQLConf.COLUMN_BATCH_SIZE.key -> "40960",
+      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "40960",
       SQLConf.VECTORIZE_SMJ_ENABLED.key -> "true") {
       import spark.sqlContext.implicits._
 
@@ -516,7 +523,7 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BATCH_SORT_USE2.key -> "true",
-      SQLConf.COLUMN_BATCH_SIZE.key -> "40960",
+      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "40960",
       SQLConf.VECTORIZE_SMJ_ENABLED.key -> "true") {
       import spark.sqlContext.implicits._
 
@@ -543,7 +550,7 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BATCH_SORT_USE2.key -> "true",
-      SQLConf.COLUMN_BATCH_SIZE.key -> "40960",
+      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "40960",
       SQLConf.VECTORIZE_SMJ_ENABLED.key -> "true") {
       import spark.sqlContext.implicits._
 
@@ -570,7 +577,7 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BATCH_SORT_USE2.key -> "true",
-      SQLConf.COLUMN_BATCH_SIZE.key -> "40960",
+      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "40960",
       SQLConf.VECTORIZE_SMJ_ENABLED.key -> "true") {
       import spark.sqlContext.implicits._
 
@@ -600,7 +607,7 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BATCH_SORT_USE2.key -> "true",
-      SQLConf.COLUMN_BATCH_SIZE.key -> "40960",
+      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "40960",
       SQLConf.VECTORIZE_SMJ_ENABLED.key -> "true") {
       import spark.sqlContext.implicits._
 
@@ -632,7 +639,7 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BATCH_SORT_USE2.key -> "true",
-      SQLConf.COLUMN_BATCH_SIZE.key -> "40960",
+      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "40960",
       SQLConf.VECTORIZE_SMJ_ENABLED.key -> "true") {
       import spark.sqlContext.implicits._
 
@@ -664,7 +671,7 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BATCH_SORT_USE2.key -> "true",
-      SQLConf.COLUMN_BATCH_SIZE.key -> "40960",
+      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "40960",
       SQLConf.VECTORIZE_SMJ_ENABLED.key -> "true") {
       import spark.sqlContext.implicits._
 
@@ -695,7 +702,7 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BATCH_SORT_USE2.key -> "true",
-      SQLConf.COLUMN_BATCH_SIZE.key -> "40960",
+      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "40960",
       SQLConf.VECTORIZE_SMJ_ENABLED.key -> "true") {
       import spark.sqlContext.implicits._
 
@@ -728,7 +735,7 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BATCH_SORT_USE2.key -> "true",
-      SQLConf.COLUMN_BATCH_SIZE.key -> "40960",
+      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "40960",
       SQLConf.VECTORIZE_SMJ_ENABLED.key -> "true") {
       import spark.sqlContext.implicits._
 
@@ -763,7 +770,7 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BATCH_SORT_USE2.key -> "true",
-      SQLConf.COLUMN_BATCH_SIZE.key -> "40960",
+      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "40960",
       SQLConf.VECTORIZE_SMJ_ENABLED.key -> "true") {
       import spark.sqlContext.implicits._
 
@@ -808,7 +815,7 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BATCH_SORT_USE2.key -> "true",
-      SQLConf.COLUMN_BATCH_SIZE.key -> "40960",
+      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "40960",
       SQLConf.VECTORIZE_SMJ_ENABLED.key -> "true") {
       import spark.sqlContext.implicits._
 
@@ -842,7 +849,7 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BATCH_SORT_USE2.key -> "true",
-      SQLConf.COLUMN_BATCH_SIZE.key -> "40960",
+      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "40960",
       SQLConf.VECTORIZE_SMJ_ENABLED.key -> "true"
     ) {
       import spark.sqlContext.implicits._

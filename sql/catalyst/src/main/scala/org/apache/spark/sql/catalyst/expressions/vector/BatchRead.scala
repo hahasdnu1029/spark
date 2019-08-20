@@ -70,7 +70,7 @@ object GenerateBatchRead extends CodeGenerator[Seq[Expression], BatchRead] {
       }
 
       class SpecificBatchRead extends ${classOf[BatchRead].getName} {
-        private final Object[] references;
+        private  Object[] references;
         private $bufferType[] buffers;
         ${ctx.declareMutableStates()}
         ${ctx.declareAddedFunctions()}
