@@ -19,22 +19,23 @@ package org.apache.spark.sql.execution.exchange
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
-
 import org.apache.spark.sql.catalyst.expressions._
+import org.apache.spark.sql.catalyst.plans.logical
+import org.apache.spark.sql.catalyst.plans.logical.Sort
 import org.apache.spark.sql.catalyst.plans.physical._
 import org.apache.spark.sql.catalyst.rules.Rule
-import org.apache.spark.sql.execution._
-import org.apache.spark.sql.execution.joins.{BroadcastHashJoinExec, ShuffledHashJoinExec,
-  SortMergeJoinExec}
+import org.apache.spark.sql.execution.{_}
+import org.apache.spark.sql.execution.joins.{BroadcastHashJoinExec, ShuffledHashJoinExec, SortMergeJoinExec}
+import org.apache.spark.sql.execution.vector.{_}
 import org.apache.spark.sql.internal.SQLConf
 
 /**
- * Ensures that the [[org.apache.spark.sql.catalyst.plans.physical.Partitioning Partitioning]]
- * of input data meets the
- * [[org.apache.spark.sql.catalyst.plans.physical.Distribution Distribution]] requirements for
- * each operator by inserting [[ShuffleExchangeExec]] Operators where required.  Also ensure that
- * the input partition ordering requirements are met.
- */
+  * Ensures that the [[org.apache.spark.sql.catalyst.plans.physical.Partitioning Partitioning]]
+  * of input data meets the
+  * [[org.apache.spark.sql.catalyst.plans.physical.Distribution Distribution]] requirements for
+  * each operator by inserting [[ShuffleExchangeExec]] Operators where required.  Also ensure that
+  * the input partition ordering requirements are met.
+  */
 case class EnsureRequirements(conf: SQLConf) extends Rule[SparkPlan] {
   private def defaultNumPreShufflePartitions: Int = conf.numShufflePartitions
 
@@ -42,23 +43,35 @@ case class EnsureRequirements(conf: SQLConf) extends Rule[SparkPlan] {
 
   private def adaptiveExecutionEnabled: Boolean = conf.adaptiveExecutionEnabled
 
+  private def vectorizedShuffleEnabled: Boolean =
+    conf.vectorizedShuffleEnabled && !conf.vectorizedBufferedShuffleEnabled
+
+  private def vectorizedBufferedShuffleEnabled: Boolean =
+    conf.vectorizedShuffleEnabled && conf.vectorizedBufferedShuffleEnabled
+
+  private def vectorizedSortEnabled: Boolean = conf.vectorizedSortEnabled
+
+  private def vectorizedBatchSortEnabled: Boolean = conf.vectorizedBatchSortEnabled
+
+  private def vectorizedBatchSortUse4: Boolean = conf.vectorizedBatchSortUse4
+
   private def minNumPostShufflePartitions: Option[Int] = {
     val minNumPostShufflePartitions = conf.minNumPostShufflePartitions
     if (minNumPostShufflePartitions > 0) Some(minNumPostShufflePartitions) else None
   }
 
   /**
-   * Adds [[ExchangeCoordinator]] to [[ShuffleExchangeExec]]s if adaptive query execution is enabled
-   * and partitioning schemes of these [[ShuffleExchangeExec]]s support [[ExchangeCoordinator]].
-   */
+    * Adds [[ExchangeCoordinator]] to [[ShuffleExchangeExec]]s if adaptive query execution is enabled
+    * and partitioning schemes of these [[ShuffleExchangeExec]]s support [[ExchangeCoordinator]].
+    */
   private def withExchangeCoordinator(
-      children: Seq[SparkPlan],
-      requiredChildDistributions: Seq[Distribution]): Seq[SparkPlan] = {
+                                       children: Seq[SparkPlan],
+                                       requiredChildDistributions: Seq[Distribution]): Seq[SparkPlan] = {
     val supportsCoordinator =
       if (children.exists(_.isInstanceOf[ShuffleExchangeExec])) {
         // Right now, ExchangeCoordinator only support HashPartitionings.
         children.forall {
-          case e @ ShuffleExchangeExec(hash: HashPartitioning, _, _) => true
+          case e@ShuffleExchangeExec(hash: HashPartitioning, _, _) => true
           case child =>
             child.outputPartitioning match {
               case hash: HashPartitioning => true
@@ -210,97 +223,111 @@ case class EnsureRequirements(conf: SQLConf) extends Rule[SparkPlan] {
     // Now that we've performed any necessary shuffles, add sorts to guarantee output orderings:
     children = children.zip(requiredChildOrderings).map { case (child, requiredOrdering) =>
       // If child.outputOrdering already satisfies the requiredOrdering, we do not need to sort.
-      if (SortOrder.orderingSatisfies(child.outputOrdering, requiredOrdering)) {
-        child
-      } else {
-        SortExec(requiredOrdering, global = false, child = child)
-      }
+            if (SortOrder.orderingSatisfies(child.outputOrdering, requiredOrdering)) {
+              child
+            } else {
+              if (vectorizedSortEnabled &&
+                vectorizedBatchSortEnabled && vectorizedBatchSortUse4) {
+                PureBatchSort4(requiredOrdering, global = false, child = child)
+              } else {
+                SortExec(requiredOrdering, global = false, child = child)
+              }
+            }
     }
 
-    operator.withNewChildren(children)
-  }
+      operator.withNewChildren(children)
+    }
 
-  private def reorder(
-      leftKeys: Seq[Expression],
-      rightKeys: Seq[Expression],
-      expectedOrderOfKeys: Seq[Expression],
-      currentOrderOfKeys: Seq[Expression]): (Seq[Expression], Seq[Expression]) = {
-    val leftKeysBuffer = ArrayBuffer[Expression]()
-    val rightKeysBuffer = ArrayBuffer[Expression]()
-    val pickedIndexes = mutable.Set[Int]()
-    val keysAndIndexes = currentOrderOfKeys.zipWithIndex
+    private def reorder(
+                         leftKeys: Seq[Expression],
+                         rightKeys: Seq[Expression],
+                         expectedOrderOfKeys: Seq[Expression],
+                         currentOrderOfKeys: Seq[Expression]): (Seq[Expression], Seq[Expression])
 
-    expectedOrderOfKeys.foreach(expression => {
-      val index = keysAndIndexes.find { case (e, idx) =>
-        // As we may have the same key used many times, we need to filter out its occurrence we
-        // have already used.
-        e.semanticEquals(expression) && !pickedIndexes.contains(idx)
-      }.map(_._2).get
-      pickedIndexes += index
-      leftKeysBuffer.append(leftKeys(index))
-      rightKeysBuffer.append(rightKeys(index))
-    })
-    (leftKeysBuffer, rightKeysBuffer)
-  }
+    =
+    {
+      val leftKeysBuffer = ArrayBuffer[Expression]()
+      val rightKeysBuffer = ArrayBuffer[Expression]()
+      val pickedIndexes = mutable.Set[Int]()
+      val keysAndIndexes = currentOrderOfKeys.zipWithIndex
 
-  private def reorderJoinKeys(
-      leftKeys: Seq[Expression],
-      rightKeys: Seq[Expression],
-      leftPartitioning: Partitioning,
-      rightPartitioning: Partitioning): (Seq[Expression], Seq[Expression]) = {
-    if (leftKeys.forall(_.deterministic) && rightKeys.forall(_.deterministic)) {
-      leftPartitioning match {
-        case HashPartitioning(leftExpressions, _)
-          if leftExpressions.length == leftKeys.length &&
-            leftKeys.forall(x => leftExpressions.exists(_.semanticEquals(x))) =>
-          reorder(leftKeys, rightKeys, leftExpressions, leftKeys)
+      expectedOrderOfKeys.foreach(expression => {
+        val index = keysAndIndexes.find { case (e, idx) =>
+          // As we may have the same key used many times, we need to filter out its occurrence we
+          // have already used.
+          e.semanticEquals(expression) && !pickedIndexes.contains(idx)
+        }.map(_._2).get
+        pickedIndexes += index
+        leftKeysBuffer.append(leftKeys(index))
+        rightKeysBuffer.append(rightKeys(index))
+      })
+      (leftKeysBuffer, rightKeysBuffer)
+    }
 
-        case _ => rightPartitioning match {
-          case HashPartitioning(rightExpressions, _)
-            if rightExpressions.length == rightKeys.length &&
-              rightKeys.forall(x => rightExpressions.exists(_.semanticEquals(x))) =>
-            reorder(leftKeys, rightKeys, rightExpressions, rightKeys)
+    private def reorderJoinKeys(
+                                 leftKeys: Seq[Expression],
+                                 rightKeys: Seq[Expression],
+                                 leftPartitioning: Partitioning,
+                                 rightPartitioning: Partitioning): (Seq[Expression], Seq[Expression])
 
-          case _ => (leftKeys, rightKeys)
+    =
+    {
+      if (leftKeys.forall(_.deterministic) && rightKeys.forall(_.deterministic)) {
+        leftPartitioning match {
+          case HashPartitioning(leftExpressions, _)
+            if leftExpressions.length == leftKeys.length &&
+              leftKeys.forall(x => leftExpressions.exists(_.semanticEquals(x))) =>
+            reorder(leftKeys, rightKeys, leftExpressions, leftKeys)
+
+          case _ => rightPartitioning match {
+            case HashPartitioning(rightExpressions, _)
+              if rightExpressions.length == rightKeys.length &&
+                rightKeys.forall(x => rightExpressions.exists(_.semanticEquals(x))) =>
+              reorder(leftKeys, rightKeys, rightExpressions, rightKeys)
+
+            case _ => (leftKeys, rightKeys)
+          }
         }
+      } else {
+        (leftKeys, rightKeys)
       }
-    } else {
-      (leftKeys, rightKeys)
+    }
+
+    /**
+      * When the physical operators are created for JOIN, the ordering of join keys is based on order
+      * in which the join keys appear in the user query. That might not match with the output
+      * partitioning of the join node's children (thus leading to extra sort / shuffle being
+      * introduced). This rule will change the ordering of the join keys to match with the
+      * partitioning of the join nodes' children.
+      */
+    private def reorderJoinPredicates(plan: SparkPlan): SparkPlan
+
+    =
+    {
+      plan match {
+        case ShuffledHashJoinExec(leftKeys, rightKeys, joinType, buildSide, condition, left, right) =>
+          val (reorderedLeftKeys, reorderedRightKeys) =
+            reorderJoinKeys(leftKeys, rightKeys, left.outputPartitioning, right.outputPartitioning)
+          ShuffledHashJoinExec(reorderedLeftKeys, reorderedRightKeys, joinType, buildSide, condition,
+            left, right)
+
+        case SortMergeJoinExec(leftKeys, rightKeys, joinType, condition, left, right) =>
+          val (reorderedLeftKeys, reorderedRightKeys) =
+            reorderJoinKeys(leftKeys, rightKeys, left.outputPartitioning, right.outputPartitioning)
+          SortMergeJoinExec(reorderedLeftKeys, reorderedRightKeys, joinType, condition, left, right)
+
+        case other => other
+      }
+    }
+
+    def apply(plan: SparkPlan): SparkPlan = plan.transformUp {
+      // TODO: remove this after we create a physical operator for `RepartitionByExpression`.
+      case operator@ShuffleExchangeExec(upper: HashPartitioning, child, _) =>
+        child.outputPartitioning match {
+          case lower: HashPartitioning if upper.semanticEquals(lower) => child
+          case _ => operator
+        }
+      case operator: SparkPlan =>
+        ensureDistributionAndOrdering(reorderJoinPredicates(operator))
     }
   }
-
-  /**
-   * When the physical operators are created for JOIN, the ordering of join keys is based on order
-   * in which the join keys appear in the user query. That might not match with the output
-   * partitioning of the join node's children (thus leading to extra sort / shuffle being
-   * introduced). This rule will change the ordering of the join keys to match with the
-   * partitioning of the join nodes' children.
-   */
-  private def reorderJoinPredicates(plan: SparkPlan): SparkPlan = {
-    plan match {
-      case ShuffledHashJoinExec(leftKeys, rightKeys, joinType, buildSide, condition, left, right) =>
-        val (reorderedLeftKeys, reorderedRightKeys) =
-          reorderJoinKeys(leftKeys, rightKeys, left.outputPartitioning, right.outputPartitioning)
-        ShuffledHashJoinExec(reorderedLeftKeys, reorderedRightKeys, joinType, buildSide, condition,
-          left, right)
-
-      case SortMergeJoinExec(leftKeys, rightKeys, joinType, condition, left, right) =>
-        val (reorderedLeftKeys, reorderedRightKeys) =
-          reorderJoinKeys(leftKeys, rightKeys, left.outputPartitioning, right.outputPartitioning)
-        SortMergeJoinExec(reorderedLeftKeys, reorderedRightKeys, joinType, condition, left, right)
-
-      case other => other
-    }
-  }
-
-  def apply(plan: SparkPlan): SparkPlan = plan.transformUp {
-    // TODO: remove this after we create a physical operator for `RepartitionByExpression`.
-    case operator @ ShuffleExchangeExec(upper: HashPartitioning, child, _) =>
-      child.outputPartitioning match {
-        case lower: HashPartitioning if upper.semanticEquals(lower) => child
-        case _ => operator
-      }
-    case operator: SparkPlan =>
-      ensureDistributionAndOrdering(reorderJoinPredicates(operator))
-  }
-}

@@ -74,11 +74,11 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       val sortColumnNames = (0 until 1).map(i => s"s_$i")
 
       val result =
-        spark.sqlContext.range(0, 100000, 1, 1)
+        spark.sqlContext.range(0, 10000, 1, 1)
           .select(sortColumns ++ otherColumns : _*)
           .sortWithinPartitions(sortColumnNames.head, sortColumnNames.tail : _*)
       result.explain(true)
-      result.show(800, false)
+      result.show(100, false)
     }
   }
 
@@ -124,7 +124,6 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       SQLConf.VECTORIZE_BATCH_SORT_USE4.key -> "true",
       SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "4096") {
       import spark.sqlContext.implicits._
-
       val result =
         lineitem.filter('l_shipdate <= "1998-09-02")
           .groupBy('l_returnflag, 'l_linestatus)
@@ -247,9 +246,8 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       SQLConf.VECTORIZE_SORT_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
-      SQLConf.VECTORIZE_BATCH_SORT_USE2.key -> "true",
-      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "40960",
-      SQLConf.VECTORIZE_SMJ_ENABLED.key -> "true") {
+      SQLConf.VECTORIZE_BATCH_SORT_USE4.key -> "true",
+      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "4096") {
       import spark.sqlContext.implicits._
 
       lazy val ord = orders.filter('o_orderdate.between("1994-01-01", "1994-12-31"))

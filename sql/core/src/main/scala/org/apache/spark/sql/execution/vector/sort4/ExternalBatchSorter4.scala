@@ -29,6 +29,7 @@ import org.apache.spark.sql.execution.vector.sort.{RowBatchSorterIterator, RowBa
 import org.apache.spark.storage.BlockManager
 import org.apache.spark.util.{TaskCompletionListener, Utils}
 import org.apache.spark.internal.Logging
+import org.apache.spark.util.collection.unsafe.sort.UnsafeInMemorySorter
 
 import scala.collection.mutable
 
@@ -174,6 +175,7 @@ class ExternalBatchSorter4(
       peakMemoryUsedBytes = mem
     }
   }
+
 
   def peakMemoryUsage(): Long = {
     updatePeakMemoryUsed()

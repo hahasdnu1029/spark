@@ -49,7 +49,8 @@ case class ExternalRowBatchSorter4(
     testSpillFrequency = frequency
   }
 
-  var numBatchesInserted: Int = 0
+
+  var numBatchesInserted = 0
 
   val innerBatchCmp = new IntComparator() {
     def compare(i1: Int, i2: Int): Int = innerBatchComparator.compare(i1, i2)

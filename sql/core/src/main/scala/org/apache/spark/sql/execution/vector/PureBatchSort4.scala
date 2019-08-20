@@ -69,7 +69,6 @@ case class PureBatchSort4(
 
   // metrics信息(sortTime,peakMemory,spillSize)
   override val metrics = Map(
-    "sortTime" -> SQLMetrics.createTimingMetric(sparkContext, "sort time"),
     "peakMemory" -> SQLMetrics.createSizeMetric(sparkContext, "peak memory"),
     "spillSize" -> SQLMetrics.createSizeMetric(sparkContext, "spill size"))
 
@@ -77,9 +76,9 @@ case class PureBatchSort4(
   private val defaultBatchCapacity: Int = sqlContext.conf.vectorizedBatchCapacity
 
   override protected def doBatchExecute(): RDD[RowBatch] = {
+    // 为了适应Sort的下一个算子是AssembleRowBathc(1024===>配置的)
     setDefaultBatchCapacity(sqlContext.conf.vectorizedBatchCapacity)
     val childOutput = child.output
-    val sortTime = longMetric("sortTime")
     val peakMemory = longMetric("peakMemory")
     val spillSize = longMetric("spillSize")
 
@@ -111,8 +110,6 @@ case class PureBatchSort4(
       val sortedIterator = sorter.sort(iter)
       // spill的数据量
       spillSize += metrics.memoryBytesSpilled - spillSizeBefore
-      //      // 排序所用的总时间
-      //      sortTime += sorter.getSortTimeNanos / 1000000
       // 峰值内存的大小
       peakMemory += sorter.peakMemoryUsage
       // 增加执行内存的大小
@@ -122,11 +119,6 @@ case class PureBatchSort4(
   }
 
   override protected def doExecute(): RDD[InternalRow] = {
-    val result = doBatchExecute()
-    result.mapPartitionsInternal { iter =>
-      iter.map(_.rowIterator().asScala).flatten
-    }
+    throw new UnsupportedOperationException(getClass.getName)
   }
-
-  //    throw new UnsupportedOperationException(getClass.getName)
 }

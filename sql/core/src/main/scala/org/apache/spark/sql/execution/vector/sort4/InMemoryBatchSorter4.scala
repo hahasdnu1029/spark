@@ -51,7 +51,6 @@ case class InMemoryBatchSorter4(
 
   var allocated: Long = 0
   var firstTime: Boolean = true
-
   val comparator: IntComparator = new IntComparator {
     override def compare(i1: Int, i2: Int): Int = {
       val b1: Int = (i1 & MASK_INT_UPPER_16_BITS) >>> 16
@@ -110,6 +109,7 @@ case class InMemoryBatchSorter4(
 
     allocationCount * granularity + arraySize
   }
+
 
   def freeMemory(): Unit = {
     batchCount = 0
