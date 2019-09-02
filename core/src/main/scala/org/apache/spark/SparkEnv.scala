@@ -52,6 +52,7 @@ import org.apache.spark.util.{RpcUtils, Utils}
  *
  * NOTE: This is not intended for external use. This is exposed for Shark and may be made private
  *       in a future release.
+  *       SparkEnv分为Driver端的SparkEnv和Executor端的SparkEnv
  */
 @DeveloperApi
 class SparkEnv (
@@ -313,6 +314,7 @@ object SparkEnv extends Logging {
       new MapOutputTrackerMasterEndpoint(
         rpcEnv, mapOutputTracker.asInstanceOf[MapOutputTrackerMaster], conf))
 
+    // 创建ShuffleManager，管理shuffle的过程
     // Let the user specify short names for shuffle managers
     val shortShuffleMgrNames = Map(
       "sort" -> classOf[org.apache.spark.shuffle.sort.SortShuffleManager].getName,
@@ -323,6 +325,7 @@ object SparkEnv extends Logging {
     val shuffleManager = instantiateClass[ShuffleManager](shuffleMgrClass)
 
     val useLegacyMemoryManager = conf.getBoolean("spark.memory.useLegacyMode", false)
+    // 这里创建MemoryManager，默认useLegacyMemoryManager=false可以手动开启
     val memoryManager: MemoryManager =
       if (useLegacyMemoryManager) {
         new StaticMemoryManager(conf, numUsableCores)

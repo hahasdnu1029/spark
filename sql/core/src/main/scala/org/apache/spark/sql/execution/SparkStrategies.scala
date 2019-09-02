@@ -18,8 +18,9 @@
 package org.apache.spark.sql.execution
 
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{execution, AnalysisException, Strategy}
+import org.apache.spark.sql.{AnalysisException, Strategy, execution}
 import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.dsl.expressions
 import org.apache.spark.sql.catalyst.encoders.RowEncoder
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.expressions.aggregate.AggregateExpression
@@ -567,11 +568,12 @@ abstract class SparkStrategies extends QueryPlanner[SparkPlan] {
       conf.vectorizedSortEnabled &&
       conf.vectorizedBatchSortEnabled &&
       conf.vectorizedBatchSortUse4
-
+    // 支持BatchExchange
     val vectorizedShuffleEnabled = conf.vectorizedShuffleEnabled &&
       !conf.vectorizedBufferedShuffleEnabled
+    // 支持BufferedBatchExchange
     val vectorizedBufferedShuffleEnabled = conf.vectorizedBufferedShuffleEnabled &&
-      !conf.vectorizedShuffleEnabled
+      conf.vectorizedShuffleEnabled
 
     def apply(plan: LogicalPlan): Seq[SparkPlan] = plan match {
       case d: DataWritingCommand => DataWritingCommandExec(d, planLater(d.query)) :: Nil
@@ -672,7 +674,11 @@ abstract class SparkStrategies extends QueryPlanner[SparkPlan] {
       case r: logical.Range =>
         execution.RangeExec(r) :: Nil
       case r: logical.RepartitionByExpression =>
-        exchange.ShuffleExchangeExec(r.partitioning, planLater(r.child)) :: Nil
+        if (vectorizedBufferedShuffleEnabled) {
+          vector.BufferedBatchExchange(r.partitioning, planLater(r.child)) :: Nil
+        }else{
+          exchange.ShuffleExchangeExec(r.partitioning, planLater(r.child)) :: Nil
+        }
       case ExternalRDD(outputObjAttr, rdd) => ExternalRDDScanExec(outputObjAttr, rdd) :: Nil
       case r: LogicalRDD =>
         RDDScanExec(r.output, r.rdd, "ExistingRDD", r.outputPartitioning, r.outputOrdering) :: Nil

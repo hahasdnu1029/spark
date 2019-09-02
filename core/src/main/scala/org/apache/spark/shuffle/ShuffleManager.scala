@@ -35,7 +35,8 @@ private[spark] trait ShuffleManager {
   def registerShuffle[K, V, C](
       shuffleId: Int,
       numMaps: Int,
-      dependency: ShuffleDependency[K, V, C]): ShuffleHandle
+      dependency: ShuffleDependency[K, V, C],
+      rowBatchMode: Boolean = false): ShuffleHandle
 
   /** Get a writer for a given partition. Called on executors by map tasks. */
   def getWriter[K, V](handle: ShuffleHandle, mapId: Int, context: TaskContext): ShuffleWriter[K, V]

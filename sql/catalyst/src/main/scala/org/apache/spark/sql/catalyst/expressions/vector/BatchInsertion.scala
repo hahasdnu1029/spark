@@ -14,73 +14,76 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.spark.sql.catalyst.expressions.vector
 
-import org.apache.spark.sql.catalyst.expressions.codegen.GeneratePredicate.logDebug
+import org.apache.spark.sql.catalyst.expressions.codegen.{CodeAndComment, CodeFormatter, CodeGenerator}
 import org.apache.spark.sql.catalyst.expressions.{Attribute, Expression}
-import org.apache.spark.sql.catalyst.expressions.codegen.{CodeAndComment, CodeFormatter, CodeGenerator, Predicate}
-import org.apache.spark.sql.catalyst.expressions.vector.GenerateBatchOrdering
 import org.apache.spark.sql.catalyst.vector.RowBatch
-import org.apache.spark.sql.types.{DoubleType, IntegerType, LongType, StringType}
+import org.apache.spark.sql.types._
 
-abstract class BatchReorderer {
-  def copy(from: RowBatch, to: RowBatch): Unit
+abstract class BatchInsertion {
+  def insert(from: RowBatch, to: RowBatch, start: Int, length: Int): Unit
 }
 
-object GenerateBatchReorderer extends CodeGenerator[Seq[Expression], BatchReorderer] {
+object GenerateBatchInsertion extends CodeGenerator[Seq[Expression], BatchInsertion] {
   override protected def canonicalize(in: Seq[Expression]): Seq[Expression] = in
   override protected def bind(
     in: Seq[Expression], inputSchema: Seq[Attribute]): Seq[Expression] = in
 
-  def generate(in: Seq[Expression], defaultCapacity: Int): BatchReorderer = {
+  def generate(in: Seq[Expression], defaultCapacity: Int): BatchInsertion = {
     create(canonicalize(in), defaultCapacity)
   }
 
-  override protected def create(in: Seq[Expression]): BatchReorderer =
+  override protected def create(in: Seq[Expression]): BatchInsertion =
     create(in, RowBatch.DEFAULT_CAPACITY)
 
-  protected def create(in: Seq[Expression], defaultCapacity: Int): BatchReorderer = {
+  protected def create(in: Seq[Expression], defaultCapacity: Int): BatchInsertion = {
     val ctx = newCodeGenContext()
     ctx.setBatchCapacity(defaultCapacity)
 
     val schema = in.map(_.dataType)
 
-    val columnCopiers = schema.zipWithIndex.map { case (dt, idx) =>
+    val columnInsertions = schema.zipWithIndex.map { case (dt, idx) =>
       dt match {
-        case IntegerType => s"to.columns[$idx].reorderInt(from.columns[$idx], from.sorted);"
-        case LongType => s"to.columns[$idx].reorderLong(from.columns[$idx], from.sorted);"
-        case DoubleType => s"to.columns[$idx].reorderDouble(from.columns[$idx], from.sorted);"
-        case StringType => s"to.columns[$idx].reorderString(from.columns[$idx], from.sorted);"
-        case _ => "Not implemented yet"
+        case IntegerType =>
+          s"to.buffers[$idx].serializeIntCV(from.columns[$idx], from.sorted, start, length);"
+        case LongType =>
+          s"to.buffers[$idx].serializeLongCV(from.columns[$idx], from.sorted, start, length);"
+        case DoubleType =>
+          s"to.buffers[$idx].serializeDoubleCV(from.columns[$idx], from.sorted, start, length);"
+        case StringType =>
+          s"to.buffers[$idx].serializeStringCV(from.columns[$idx], from.sorted, start, length);"
+        case _ =>
+          "Not implemented yet"
       }
     }.mkString("\n")
 
     val codeBody = s"""
       public java.lang.Object generate(Object[] references) {
-        return new SpecificBatchReorderer(references);
+        return new SpecificBatchInsertion(references);
       }
 
-      class SpecificBatchReorderer extends ${classOf[BatchReorderer].getName} {
+      class SpecificBatchInsertion extends ${classOf[BatchInsertion].getName} {
         private Object[] references;
         ${ctx.declareMutableStates()}
         ${ctx.declareAddedFunctions()}
 
-        public SpecificBatchReorderer(Object[] references) {
+        public SpecificBatchInsertion(Object[] references) {
           this.references = references;
           ${ctx.initMutableStates()}
         }
 
-        public void copy(RowBatch from, RowBatch to) {
-          $columnCopiers
+        public void insert(RowBatch from, RowBatch to, int start, int length) {
+          to.size += length;
+          $columnInsertions
         }
       }
     """
     val code = CodeFormatter.stripOverlappingComments(
       new CodeAndComment(codeBody, ctx.getPlaceHolderToComments()))
-    logDebug(s"Generated BatchReorderer by ${in.mkString(",")}:\n${CodeFormatter.format(code)}")
-
-    // 对生成的代码进行编译，返回一个二元组（clazz,_）。clazz是class字节码对象
+    logDebug(s"Generated BatchInsertion by ${in.mkString(",")}:\n${CodeFormatter.format(code)}")
     val (clazz, _) = CodeGenerator.compile(code)
-    clazz.generate(ctx.references.toArray).asInstanceOf[BatchReorderer]
+    clazz.generate(ctx.references.toArray).asInstanceOf[BatchInsertion]
   }
 }

@@ -97,8 +97,10 @@ class QueryExecution(val sparkSession: SparkSession, val logical: LogicalPlan) {
     ReuseExchange(sparkSession.sessionState.conf),
     ReuseSubquery(sparkSession.sessionState.conf),
     EnsureRowFormats,
-    SetParentForOperator,
-    PropagateCapacity(sparkSession.sqlContext))
+//    DisableRowBatchReuse,
+    SetParentForOperator
+//    PropagateCapacity(sparkSession.sqlContext)
+   )
 
   protected def stringOrError[A](f: => A): String =
     try f.toString catch {

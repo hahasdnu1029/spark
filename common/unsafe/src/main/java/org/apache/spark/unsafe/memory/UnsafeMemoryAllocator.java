@@ -26,6 +26,7 @@ public class UnsafeMemoryAllocator implements MemoryAllocator {
 
   @Override
   public MemoryBlock allocate(long size) throws OutOfMemoryError {
+    // 直接调用Platform进行内存的申请，返回的是申请到内存的绝对地址，64bit的地址
     long address = Platform.allocateMemory(size);
     MemoryBlock memory = new MemoryBlock(null, address, size);
     if (MemoryAllocator.MEMORY_DEBUG_FILL_ENABLED) {
@@ -47,6 +48,7 @@ public class UnsafeMemoryAllocator implements MemoryAllocator {
     if (MemoryAllocator.MEMORY_DEBUG_FILL_ENABLED) {
       memory.fill(MemoryAllocator.MEMORY_DEBUG_FILL_FREED_VALUE);
     }
+    // 释放内存直接Platform.freeMemory(memory.offset)
     Platform.freeMemory(memory.offset);
     // As an additional layer of defense against use-after-free bugs, we mutate the
     // MemoryBlock to reset its pointer.

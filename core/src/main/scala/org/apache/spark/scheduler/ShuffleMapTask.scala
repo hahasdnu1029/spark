@@ -84,7 +84,9 @@ private[spark] class ShuffleMapTask(
     val deserializeStartCpuTime = if (threadMXBean.isCurrentThreadCpuTimeSupported) {
       threadMXBean.getCurrentThreadCpuTime
     } else 0L
+    // 获得序列化器
     val ser = SparkEnv.get.closureSerializer.newInstance()
+    // 根据输入流读取的程序数据进行反序列化得到rdd和dep【rdd和rdd之间的依赖关系】
     val (rdd, dep) = ser.deserialize[(RDD[_], ShuffleDependency[_, _, _])](
       ByteBuffer.wrap(taskBinary.value), Thread.currentThread.getContextClassLoader)
     _executorDeserializeTime = System.currentTimeMillis() - deserializeStartTime
@@ -95,8 +97,11 @@ private[spark] class ShuffleMapTask(
     var writer: ShuffleWriter[Any, Any] = null
     try {
       val manager = SparkEnv.get.shuffleManager
+      // 得到ShuffleWriter，进行Shuffle操作
       writer = manager.getWriter[Any, Any](dep.shuffleHandle, partitionId, context)
+      // rdd进行迭代执行，对返回的结果进行write
       writer.write(rdd.iterator(partition, context).asInstanceOf[Iterator[_ <: Product2[Any, Any]]])
+      // 获得MapStatus返回
       writer.stop(success = true).get
     } catch {
       case e: Exception =>

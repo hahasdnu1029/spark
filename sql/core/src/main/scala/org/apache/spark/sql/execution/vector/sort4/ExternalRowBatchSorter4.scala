@@ -62,14 +62,13 @@ case class ExternalRowBatchSorter4(
     innerBatchComparator.reset(rb)
     // 先对这个RowBatch进行内部排序
     rb.sort(innerBatchCmp)
-    println("=========insertBatch之前==========")
     //ExternalBatchSorter4(MemoryConsumer)内存插入
     sorter.insertBatch(rb)
     numBatchesInserted += 1
-
+    println("=========insertBatch之前==========")
     if (testSpillFrequency > 0 && (numBatchesInserted % testSpillFrequency) == 0) {
       // 每次插入完检测是否需要spill，需要则进行spill
-      println("============进入spill===========")
+      println("=========进入spill============")
       sorter.spill()
     }
   }

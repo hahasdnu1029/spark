@@ -54,13 +54,16 @@ public class TaskMemoryManager {
   private static final Logger logger = LoggerFactory.getLogger(TaskMemoryManager.class);
 
   /** The number of bits used to address the page table. */
+  // 内存页索引的二进制位数（13）
   private static final int PAGE_NUMBER_BITS = 13;
 
   /** The number of bits used to encode offsets in data pages. */
+  // 内存页内部偏移量的二进制位数(51)
   @VisibleForTesting
   static final int OFFSET_BITS = 64 - PAGE_NUMBER_BITS;  // 51
 
   /** The number of entries in the page table. */
+  // 每个task内部最多支持的内存页数目2^13
   private static final int PAGE_TABLE_SIZE = 1 << PAGE_NUMBER_BITS;
 
   /**
@@ -69,10 +72,12 @@ public class TaskMemoryManager {
    * maximum page size is limited by the maximum amount of data that can be stored in a long[]
    * array, which is (2^31 - 1) * 8 bytes (or about 17 gigabytes). Therefore, we cap this at 17
    * gigabytes.
+   * 单个内存页支持的最大容量
    */
   public static final long MAXIMUM_PAGE_SIZE_BYTES = ((1L << 31) - 1) * 8L;
 
   /** Bit mask for the lower 51 bits of a long. */
+  // 51位1的二进制掩码
   private static final long MASK_LONG_LOWER_51_BITS = 0x7FFFFFFFFFFFFL;
 
   /**

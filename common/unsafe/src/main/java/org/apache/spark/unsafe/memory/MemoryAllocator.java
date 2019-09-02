@@ -17,6 +17,11 @@
 
 package org.apache.spark.unsafe.memory;
 
+// Tungsten 内存分配的基础接口
+// 实现由HeapMemoryAllocator和UnsafeMemoryAllocator
+// 堆内内存地址由1个64bit的对象引用和对象内部的偏移量组成
+// 堆外内存地址有1个64bit的指针(长整型数字)表示
+// 重要而方法是allocate和free方法
 public interface MemoryAllocator {
 
   /**

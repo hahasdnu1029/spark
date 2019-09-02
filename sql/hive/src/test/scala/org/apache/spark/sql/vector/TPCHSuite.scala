@@ -22,7 +22,7 @@ import org.apache.spark.sql.execution.SparkPlan
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.hive.test.TestHiveSingleton
 import org.apache.spark.sql.test.SQLTestUtils
-import org.apache.spark.sql.QueryTest
+import org.apache.spark.sql.{QueryTest}
 import org.apache.spark.sql.internal.SQLConf
 
 import scala.util.Random
@@ -41,8 +41,9 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
   test("Shuffle") {
     withSQLConf(
       SQLConf.VECTORIZE_ENABLED.key -> "true",
+      SQLConf.VECTORIZE_SHUFFLE_ENABLED.key->"true",
       SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
-      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "24576") {
+      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "800") {
       import spark.sqlContext.implicits._
 
       val result =
@@ -51,20 +52,20 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
           .repartition(200, $"r")
 
       result.explain(true)
-      result.show(100, false)
+      result.show(1000000, false)
     }
   }
 
   test("Sort") {
     withSQLConf(
-      SQLConf.VECTORIZE_ENABLED.key -> "true",
-      SQLConf.VECTORIZE_AGG_ENABLED.key -> "true",
-      SQLConf.VECTORIZE_SHUFFLE_ENABLED.key -> "true",
-      SQLConf.VECTORIZE_SORT_ENABLED.key -> "true",
-      SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "true",
-      SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
-      SQLConf.VECTORIZE_BATCH_SORT_USE4.key -> "true",
-      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "4096") {
+      SQLConf.VECTORIZE_ENABLED.key -> "false",
+      SQLConf.VECTORIZE_AGG_ENABLED.key -> "false",
+      SQLConf.VECTORIZE_SORT_ENABLED.key -> "false",
+      SQLConf.VECTORIZE_SHUFFLE_ENABLED.key -> "false",
+      SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "false",
+      SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "false",
+      SQLConf.VECTORIZE_BATCH_SORT_USE4.key -> "false",
+      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "40960") {
       import spark.sqlContext.implicits._
 
 
@@ -74,11 +75,11 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       val sortColumnNames = (0 until 1).map(i => s"s_$i")
 
       val result =
-        spark.sqlContext.range(0, 10000, 1, 1)
+        spark.sqlContext.range(0, 1000000L, 1, 1)
           .select(sortColumns ++ otherColumns : _*)
           .sortWithinPartitions(sortColumnNames.head, sortColumnNames.tail : _*)
       result.explain(true)
-      result.show(100, false)
+      result.show(10000, false)
     }
   }
 
@@ -90,6 +91,8 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       SQLConf.VECTORIZE_HM_CAPACITY.key -> "65536",
       SQLConf.VECTORIZE_HM_USELP.key -> "true",
       SQLConf.VECTORIZE_HM_LOAD_FACTOR.key -> "0.5",
+      SQLConf.VECTORIZE_SHUFFLE_ENABLED.key -> "true",
+      SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "1024") {
       import spark.sqlContext.implicits._
 
@@ -117,7 +120,7 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
     withSQLConf(
       SQLConf.VECTORIZE_ENABLED.key -> "true",
       SQLConf.VECTORIZE_AGG_ENABLED.key -> "true",
-      SQLConf.VECTORIZE_SHUFFLE_ENABLED.key -> "true",
+      SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
       SQLConf.VECTORIZE_SORT_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
@@ -247,7 +250,8 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
       SQLConf.VECTORIZE_BATCH_SORT_USE4.key -> "true",
-      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "4096") {
+      SQLConf.VECTORIZE_SORT_BATCH_CAPACITY.key -> "40960",
+      SQLConf.VECTORIZE_SMJ_ENABLED.key -> "true") {
       import spark.sqlContext.implicits._
 
       lazy val ord = orders.filter('o_orderdate.between("1994-01-01", "1994-12-31"))

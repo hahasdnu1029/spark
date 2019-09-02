@@ -75,9 +75,9 @@ case class PureBatchSort4(
   // 默认的Batch容量
   private val defaultBatchCapacity: Int = sqlContext.conf.vectorizedBatchCapacity
 
+  setDefaultBatchCapacity(sqlContext.conf.vectorizedBatchCapacity)
+
   override protected def doBatchExecute(): RDD[RowBatch] = {
-    // 为了适应Sort的下一个算子是AssembleRowBathc(1024===>配置的)
-    setDefaultBatchCapacity(sqlContext.conf.vectorizedBatchCapacity)
     val childOutput = child.output
     val peakMemory = longMetric("peakMemory")
     val spillSize = longMetric("spillSize")
@@ -93,8 +93,6 @@ case class PureBatchSort4(
       // 创建ExternalRowBatchSorter4
       val sorter = new ExternalRowBatchSorter4(
         childOutput, defaultBatchCapacity, innerBatchComparator, interBatchComparator)
-
-      println("=======BatchSort============")
       if (testSpillFrequency > 0) {
         sorter.setTestSpillFrequency(testSpillFrequency)
       }

@@ -51,6 +51,7 @@ private[memory] class ExecutionMemoryPool(
 
   /**
    * Map from taskAttemptId -> memory consumption in bytes
+    * 记录每个task使用的多少内存
    */
   @GuardedBy("lock")
   private val memoryForTask = new mutable.HashMap[Long, Long]()
@@ -80,12 +81,13 @@ private[memory] class ExecutionMemoryPool(
    * @param maybeGrowPool a callback that potentially grows the size of this pool. It takes in
    *                      one parameter (Long) that represents the desired amount of memory by
    *                      which this pool should be expanded.
+    *                      回调函数，用来想storagepool申请内存增加执行内存大小的函数
    * @param computeMaxPoolSize a callback that returns the maximum allowable size of this pool
    *                           at this given moment. This is not a field because the max pool
    *                           size is variable in certain cases. For instance, in unified
    *                           memory management, the execution pool can be expanded by evicting
    *                           cached blocks, thereby shrinking the storage pool.
-   *
+   *                           回调函数用来获取当前ExecutionMemoryPool的大小的
    * @return the number of bytes granted to the task.
    */
   private[memory] def acquireMemory(

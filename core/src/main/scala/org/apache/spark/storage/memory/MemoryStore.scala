@@ -44,12 +44,14 @@ private sealed trait MemoryEntry[T] {
   def memoryMode: MemoryMode
   def classTag: ClassTag[T]
 }
+// 非序列化的Block，用一个数组存储所有的对象实例，value: Array[T],
 private case class DeserializedMemoryEntry[T](
     value: Array[T],
     size: Long,
     classTag: ClassTag[T]) extends MemoryEntry[T] {
   val memoryMode: MemoryMode = MemoryMode.ON_HEAP
 }
+// 序列化的Block，使用一个ByteBuffer存储所有的二进制数据， buffer: ChunkedByteBuffer,
 private case class SerializedMemoryEntry[T](
     buffer: ChunkedByteBuffer,
     memoryMode: MemoryMode,
@@ -77,6 +79,7 @@ private[storage] trait BlockEvictionHandler {
 /**
  * Stores blocks in memory, either as Arrays of deserialized Java objects or as
  * serialized ByteBuffers.
+  * 存储Block，用来对存储内存进行申请和释放
  */
 private[spark] class MemoryStore(
     conf: SparkConf,
@@ -88,6 +91,8 @@ private[spark] class MemoryStore(
 
   // Note: all changes to memory allocations, notably putting blocks, evicting blocks, and
   // acquiring or releasing unroll memory, must be synchronized on `memoryManager`!
+
+  // LinkedHashMap记录所有的Block
 
   private val entries = new LinkedHashMap[BlockId, MemoryEntry[_]](32, 0.75f, true)
 

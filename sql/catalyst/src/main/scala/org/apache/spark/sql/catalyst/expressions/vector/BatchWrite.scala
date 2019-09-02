@@ -23,7 +23,7 @@ import java.nio.channels.WritableByteChannel
 import org.apache.spark.sql.catalyst.expressions.codegen.GeneratePredicate.logDebug
 import org.apache.spark.sql.catalyst.expressions.{Attribute, Expression}
 import org.apache.spark.sql.catalyst.expressions.codegen.{CodeAndComment, CodeFormatter, CodeGenerator, Predicate}
-import org.apache.spark.sql.catalyst.expressions.vector.GenerateBatchOrdering.exprType
+import org.apache.spark.sql.catalyst.expressions.vector.GenerateBatchOrdering
 import org.apache.spark.sql.catalyst.vector.{ColumnVectorSerDeHelper, RowBatch}
 import org.apache.spark.sql.types._
 

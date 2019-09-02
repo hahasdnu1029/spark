@@ -17,12 +17,13 @@
 
 package org.apache.spark.unsafe.memory;
 
-import javax.annotation.Nullable;
-
 import org.apache.spark.unsafe.Platform;
+
+import javax.annotation.Nullable;
 
 /**
  * A consecutive block of memory, starting at a {@link MemoryLocation} with a fixed size.
+ * 用来表示一段连续的内存块，在MemoryLocation的基础上加上了内存页编号和对应的数据块大小
  */
 public class MemoryBlock extends MemoryLocation {
 

@@ -9,7 +9,9 @@ import java.nio.ByteBuffer;
 
 public class OffColumnVector extends ColumnVector {
 
+  // 列null位置存储的偏移量
   private long isNull;
+  // 列数据存储的偏移量offset
   private long data;
 
   private long starts;

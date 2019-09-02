@@ -17,13 +17,13 @@
 
 package org.apache.spark.unsafe.memory;
 
+import org.apache.spark.unsafe.Platform;
+
 import javax.annotation.concurrent.GuardedBy;
 import java.lang.ref.WeakReference;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
-
-import org.apache.spark.unsafe.Platform;
 
 /**
  * A simple {@link MemoryAllocator} that can allocate up to 16GB using a JVM long primitive array.
@@ -46,9 +46,11 @@ public class HeapMemoryAllocator implements MemoryAllocator {
 
   @Override
   public MemoryBlock allocate(long size) throws OutOfMemoryError {
+    // 传入的long size，size为字节数目，这里才用户8字节对齐的方式
     int numWords = (int) ((size + 7) / 8);
     long alignedSize = numWords * 8L;
     assert (alignedSize >= size);
+    // 申请的空间很小时。直接创建array，否则从pool中取，pool中预先存放了各种尺寸的内存块
     if (shouldPool(alignedSize)) {
       synchronized (this) {
         final LinkedList<WeakReference<long[]>> pool = bufferPoolsBySize.get(alignedSize);
@@ -69,14 +71,16 @@ public class HeapMemoryAllocator implements MemoryAllocator {
         }
       }
     }
+    // 构建numWords大小的长整型数组
     long[] array = new long[numWords];
+    // obj=array,offset=Platform.LONG_ARRAY_OFFSE，length=size
     MemoryBlock memory = new MemoryBlock(array, Platform.LONG_ARRAY_OFFSET, size);
     if (MemoryAllocator.MEMORY_DEBUG_FILL_ENABLED) {
       memory.fill(MemoryAllocator.MEMORY_DEBUG_FILL_CLEAN_VALUE);
     }
     return memory;
   }
-
+  // 堆内内存的释放不需要Spark去释放，而是由JVM进行释放的管理
   @Override
   public void free(MemoryBlock memory) {
     assert (memory.obj != null) :

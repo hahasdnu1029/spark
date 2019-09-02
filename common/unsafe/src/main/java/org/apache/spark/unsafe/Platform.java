@@ -17,13 +17,13 @@
 
 package org.apache.spark.unsafe;
 
+import sun.misc.Cleaner;
+import sun.misc.Unsafe;
+
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
-
-import sun.misc.Cleaner;
-import sun.misc.Unsafe;
 
 public final class Platform {
 
@@ -228,6 +228,7 @@ public final class Platform {
   static {
     sun.misc.Unsafe unsafe;
     try {
+      // 获取unsafe实例，unsafe的构造方法是私有的，只能通过反射来获取他的实例
       Field unsafeField = Unsafe.class.getDeclaredField("theUnsafe");
       unsafeField.setAccessible(true);
       unsafe = (sun.misc.Unsafe) unsafeField.get(null);

@@ -29,11 +29,12 @@ import org.apache.spark.unsafe.array.ByteArrayMethods
 import org.apache.spark.unsafe.types.UTF8String
 
 /**
- * Returns an Array containing the evaluation of all children expressions.
- */
+  * Returns an Array containing the evaluation of all children expressions.
+  */
 @ExpressionDescription(
   usage = "_FUNC_(expr, ...) - Returns an array with the given elements.",
-  examples = """
+  examples =
+    """
     Examples:
       > SELECT _FUNC_(1, 2, 3);
        [1,2,3]
@@ -73,22 +74,22 @@ case class CreateArray(children: Seq[Expression]) extends Expression {
   override def prettyName: String = "array"
 }
 
-private [sql] object GenArrayData {
+private[sql] object GenArrayData {
   /**
-   * Return Java code pieces based on DataType and isPrimitive to allocate ArrayData class
-   *
-   * @param ctx a [[CodegenContext]]
-   * @param elementType data type of underlying array elements
-   * @param elementsCode concatenated set of [[ExprCode]] for each element of an underlying array
-   * @param isMapKey if true, throw an exception when the element is null
-   * @return (code pre-assignments, concatenated assignments to each array elements,
-   *           code post-assignments, arrayData name)
-   */
+    * Return Java code pieces based on DataType and isPrimitive to allocate ArrayData class
+    *
+    * @param ctx          a [[CodegenContext]]
+    * @param elementType  data type of underlying array elements
+    * @param elementsCode concatenated set of [[ExprCode]] for each element of an underlying array
+    * @param isMapKey     if true, throw an exception when the element is null
+    * @return (code pre-assignments, concatenated assignments to each array elements,
+    *         code post-assignments, arrayData name)
+    */
   def genCodeToCreateArrayData(
-      ctx: CodegenContext,
-      elementType: DataType,
-      elementsCode: Seq[ExprCode],
-      isMapKey: Boolean): (String, String, String, String) = {
+                                ctx: CodegenContext,
+                                elementType: DataType,
+                                elementsCode: Seq[ExprCode],
+                                isMapKey: Boolean): (String, String, String, String) = {
     val arrayDataName = ctx.freshName("arrayData")
     val numElements = elementsCode.length
 
@@ -102,7 +103,8 @@ private [sql] object GenArrayData {
         } else {
           "throw new RuntimeException(\"Cannot use null as map key!\");"
         }
-        eval.code + s"""
+        eval.code +
+          s"""
          if (${eval.isNull}) {
            $isNullAssignment
          } else {
@@ -116,14 +118,14 @@ private [sql] object GenArrayData {
         extraArguments = ("Object[]", arrayName) :: Nil)
 
       (s"Object[] $arrayName = new Object[$numElements];",
-       assignmentString,
-       s"final ArrayData $arrayDataName = new $genericArrayClass($arrayName);",
-       arrayDataName)
+        assignmentString,
+        s"final ArrayData $arrayDataName = new $genericArrayClass($arrayName);",
+        arrayDataName)
     } else {
       val arrayName = ctx.freshName("array")
       val unsafeArraySizeInBytes =
         UnsafeArrayData.calculateHeaderPortionInBytes(numElements) +
-        ByteArrayMethods.roundNumberOfBytesToNearestWord(elementType.defaultSize * numElements)
+          ByteArrayMethods.roundNumberOfBytesToNearestWord(elementType.defaultSize * numElements)
       val baseOffset = "Platform.BYTE_ARRAY_OFFSET"
 
       val primitiveValueTypeName = CodeGenerator.primitiveTypeName(elementType)
@@ -133,7 +135,8 @@ private [sql] object GenArrayData {
         } else {
           "throw new RuntimeException(\"Cannot use null as map key!\");"
         }
-        eval.code + s"""
+        eval.code +
+          s"""
          if (${eval.isNull}) {
            $isNullAssignment
          } else {
@@ -146,26 +149,28 @@ private [sql] object GenArrayData {
         funcName = "apply",
         extraArguments = ("UnsafeArrayData", arrayDataName) :: Nil)
 
-      (s"""
+      (
+        s"""
         byte[] $arrayName = new byte[$unsafeArraySizeInBytes];
         UnsafeArrayData $arrayDataName = new UnsafeArrayData();
         Platform.putLong($arrayName, $baseOffset, $numElements);
         $arrayDataName.pointTo($arrayName, $baseOffset, $unsafeArraySizeInBytes);
       """,
-       assignmentString,
-       "",
-       arrayDataName)
+        assignmentString,
+        "",
+        arrayDataName)
     }
   }
 }
 
 /**
- * Returns a catalyst Map containing the evaluation of all children expressions as keys and values.
- * The children are a flatted sequence of kv pairs, e.g. (key1, value1, key2, value2, ...)
- */
+  * Returns a catalyst Map containing the evaluation of all children expressions as keys and values.
+  * The children are a flatted sequence of kv pairs, e.g. (key1, value1, key2, value2, ...)
+  */
 @ExpressionDescription(
   usage = "_FUNC_(key0, value0, key1, value1, ...) - Creates a map with the given key/value pairs.",
-  examples = """
+  examples =
+    """
     Examples:
       > SELECT _FUNC_(1.0, '2', 3.0, '4');
        {1.0:"2",3.0:"4"}
@@ -240,13 +245,15 @@ case class CreateMap(children: Seq[Expression]) extends Expression {
 }
 
 /**
- * Returns a catalyst Map containing the two arrays in children expressions as keys and values.
- */
+  * Returns a catalyst Map containing the two arrays in children expressions as keys and values.
+  */
 @ExpressionDescription(
-  usage = """
+  usage =
+    """
     _FUNC_(keys, values) - Creates a map with a pair of the given key/value arrays. All elements
       in keys should not be null""",
-  examples = """
+  examples =
+    """
     Examples:
       > SELECT _FUNC_(array(1.0, 3.0), array('2', '4'));
        {1.0:"2",3.0:"4"}
@@ -310,22 +317,27 @@ case class MapFromArrays(left: Expression, right: Expression)
 }
 
 /**
- * An expression representing a not yet available attribute name. This expression is unevaluable
- * and as its name suggests it is a temporary place holder until we're able to determine the
- * actual attribute name.
- */
+  * An expression representing a not yet available attribute name. This expression is unevaluable
+  * and as its name suggests it is a temporary place holder until we're able to determine the
+  * actual attribute name.
+  */
 case object NamePlaceholder extends LeafExpression with Unevaluable {
   override lazy val resolved: Boolean = false
+
   override def foldable: Boolean = false
+
   override def nullable: Boolean = false
+
   override def dataType: DataType = StringType
+
   override def prettyName: String = "NamePlaceholder"
+
   override def toString: String = prettyName
 }
 
 /**
- * Returns a Row containing the evaluation of all children expressions.
- */
+  * Returns a Row containing the evaluation of all children expressions.
+  */
 object CreateStruct extends FunctionBuilder {
   def apply(children: Seq[Expression]): CreateNamedStruct = {
     CreateNamedStruct(children.zipWithIndex.flatMap {
@@ -336,8 +348,8 @@ object CreateStruct extends FunctionBuilder {
   }
 
   /**
-   * Entry to use in the function registry.
-   */
+    * Entry to use in the function registry.
+    */
   val registryEntry: (String, (ExpressionInfo, FunctionBuilder)) = {
     val info: ExpressionInfo = new ExpressionInfo(
       "org.apache.spark.sql.catalyst.expressions.NamedStruct",
@@ -353,8 +365,8 @@ object CreateStruct extends FunctionBuilder {
 }
 
 /**
- * Common base class for both [[CreateNamedStruct]] and [[CreateNamedStructUnsafe]].
- */
+  * Common base class for both [[CreateNamedStruct]] and [[CreateNamedStructUnsafe]].
+  */
 trait CreateNamedStructLike extends Expression {
   lazy val (nameExprs, valExprs) = children.grouped(2).map {
     case Seq(name, value) => (name, value)
@@ -396,9 +408,9 @@ trait CreateNamedStructLike extends Expression {
   }
 
   /**
-   * Returns Aliased [[Expression]]s that could be used to construct a flattened version of this
-   * StructType.
-   */
+    * Returns Aliased [[Expression]]s that could be used to construct a flattened version of this
+    * StructType.
+    */
   def flatten: Seq[NamedExpression] = valExprs.zip(names).map {
     case (v, n) => Alias(v, n.toString)()
   }
@@ -409,14 +421,15 @@ trait CreateNamedStructLike extends Expression {
 }
 
 /**
- * Creates a struct with the given field names and values
- *
- * @param children Seq(name1, val1, name2, val2, ...)
- */
+  * Creates a struct with the given field names and values
+  *
+  * @param children Seq(name1, val1, name2, val2, ...)
+  */
 // scalastyle:off line.size.limit
 @ExpressionDescription(
   usage = "_FUNC_(name1, val1, name2, val2, ...) - Creates a struct with the given field names and values.",
-  examples = """
+  examples =
+    """
     Examples:
       > SELECT _FUNC_("a", 1, "b", 2, "c", 3);
        {"a":1,"b":2,"c":3}
@@ -445,10 +458,10 @@ case class CreateNamedStruct(children: Seq[Expression]) extends CreateNamedStruc
 
     ev.copy(code =
       code"""
-         |Object[] $values = new Object[${valExprs.size}];
-         |$valuesCode
-         |final InternalRow ${ev.value} = new $rowClass($values);
-         |$values = null;
+            |Object[] $values = new Object[${valExprs.size}];
+            |$valuesCode
+            |final InternalRow ${ev.value} = new $rowClass($values);
+            |$values = null;
        """.stripMargin, isNull = FalseLiteral)
   }
 
@@ -456,12 +469,12 @@ case class CreateNamedStruct(children: Seq[Expression]) extends CreateNamedStruc
 }
 
 /**
- * Creates a struct with the given field names and values. This is a variant that returns
- * UnsafeRow directly. The unsafe projection operator replaces [[CreateStruct]] with
- * this expression automatically at runtime.
- *
- * @param children Seq(name1, val1, name2, val2, ...)
- */
+  * Creates a struct with the given field names and values. This is a variant that returns
+  * UnsafeRow directly. The unsafe projection operator replaces [[CreateStruct]] with
+  * this expression automatically at runtime.
+  *
+  * @param children Seq(name1, val1, name2, val2, ...)
+  */
 case class CreateNamedStructUnsafe(children: Seq[Expression]) extends CreateNamedStructLike {
   override def doGenCode(ctx: CodegenContext, ev: ExprCode): ExprCode = {
     val eval = GenerateUnsafeProjection.createCode(ctx, valExprs)
@@ -472,12 +485,13 @@ case class CreateNamedStructUnsafe(children: Seq[Expression]) extends CreateName
 }
 
 /**
- * Creates a map after splitting the input text into key/value pairs using delimiters
- */
+  * Creates a map after splitting the input text into key/value pairs using delimiters
+  */
 // scalastyle:off line.size.limit
 @ExpressionDescription(
   usage = "_FUNC_(text[, pairDelim[, keyValueDelim]]) - Creates a map after splitting the text into key/value pairs using delimiters. Default delimiters are ',' for `pairDelim` and ':' for `keyValueDelim`.",
-  examples = """
+  examples =
+    """
     Examples:
       > SELECT _FUNC_('a:1,b:2,c:3', ',', ':');
        map("a":"1","b":"2","c":"3")
@@ -503,7 +517,7 @@ case class StringToMap(text: Expression, pairDelim: Expression, keyValueDelim: E
   override def dataType: DataType = MapType(StringType, StringType)
 
   override def checkInputDataTypes(): TypeCheckResult = {
-    if (Seq(pairDelim, keyValueDelim).exists(! _.foldable)) {
+    if (Seq(pairDelim, keyValueDelim).exists(!_.foldable)) {
       TypeCheckResult.TypeCheckFailure(s"$prettyName's delimiters must be foldable.")
     } else {
       super.checkInputDataTypes()
@@ -511,9 +525,9 @@ case class StringToMap(text: Expression, pairDelim: Expression, keyValueDelim: E
   }
 
   override def nullSafeEval(
-      inputString: Any,
-      stringDelimiter: Any,
-      keyValueDelimiter: Any): Any = {
+                             inputString: Any,
+                             stringDelimiter: Any,
+                             keyValueDelimiter: Any): Any = {
     val keyValues =
       inputString.asInstanceOf[UTF8String].split(stringDelimiter.asInstanceOf[UTF8String], -1)
 

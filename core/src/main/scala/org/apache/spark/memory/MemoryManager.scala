@@ -34,6 +34,8 @@ import org.apache.spark.unsafe.memory.MemoryAllocator
  * In this context, execution memory refers to that used for computation in shuffles, joins,
  * sorts and aggregations, while storage memory refers to that used for caching and propagating
  * internal data across the cluster. There exists one MemoryManager per JVM.
+  * 内存管理的统一接口，同一个Executor中的task都会调用MemoryManager中定义的接口进行内存的申请和释放
+  * 两种实现分别是StaticMemoryManager和UnifiedMemoryManager
  */
 private[spark] abstract class MemoryManager(
     conf: SparkConf,
@@ -212,6 +214,12 @@ private[spark] abstract class MemoryManager(
    * If user didn't explicitly set "spark.buffer.pageSize", we figure out the default value
    * by looking at the number of cores available to the process, and the total amount of memory,
    * and then divide it by a factor of safety.
+    * 可以通过spark.buffer.pageSize这个参数来设置pageSize的大小
+    * 默认值：
+    * minPageSize=1L*1024*1024（1）maxPageSize=64L*minPageSize
+    * safetyFactor=16，size=nextPowerOf2(maxTungstenMemory/cores*safeFactor)
+    * default=math.min(maxPageSize,math.max(minPageSize,size))
+    * 1M~64M之间
    */
   val pageSizeBytes: Long = {
     val minPageSize = 1L * 1024 * 1024   // 1MB

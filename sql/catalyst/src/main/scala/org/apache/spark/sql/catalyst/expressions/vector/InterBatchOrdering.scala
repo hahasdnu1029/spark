@@ -18,7 +18,7 @@
 package org.apache.spark.sql.catalyst.expressions.vector
 
 import org.apache.spark.sql.catalyst.expressions.codegen._
-import org.apache.spark.sql.catalyst.expressions.vector.GenerateBatchOrdering.exprType
+import org.apache.spark.sql.catalyst.expressions.vector.GenerateBatchOrdering
 import org.apache.spark.sql.catalyst.expressions.{Ascending, Attribute, BindReferences, SortOrder}
 import org.apache.spark.sql.catalyst.vector.RowBatch
 import org.apache.spark.sql.types.StringType
@@ -119,7 +119,6 @@ object GenerateInterBatchOrdering extends CodeGenerator[Seq[SortOrder], InterBat
     val code = CodeFormatter.stripOverlappingComments(
       new CodeAndComment(codeBody, ctx.getPlaceHolderToComments()))
     logDebug(s"Generated InterBatchOrdering by ${in.mkString(",")}:\n${CodeFormatter.format(code)}")
-    println(code.body)
     val (clazz, _) = CodeGenerator.compile(code)
     clazz.generate(ctx.references.toArray).asInstanceOf[InterBatchOrdering]
   }

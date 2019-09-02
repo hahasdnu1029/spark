@@ -18,7 +18,7 @@ package org.apache.spark.sql.catalyst.expressions.vector
 
 import org.apache.spark.sql.catalyst.expressions.{Attribute, Expression}
 import org.apache.spark.sql.catalyst.expressions.codegen.{CodeAndComment, CodeFormatter, CodeGenerator}
-import org.apache.spark.sql.catalyst.expressions.vector.GenerateBatchOrdering.{exprType, logDebug}
+import org.apache.spark.sql.catalyst.expressions.vector.GenerateBatchOrdering.{logDebug}
 import org.apache.spark.sql.catalyst.vector.RowBatch
 import org.apache.spark.sql.types.{DoubleType, IntegerType, LongType, StringType}
 

@@ -22,6 +22,8 @@ import javax.annotation.Nullable;
 /**
  * A memory location. Tracked either by a memory address (with off-heap allocation),
  * or by an offset from a JVM object (in-heap allocation).
+ * MemoryLocation用来追踪堆内和堆外的内存地址，在堆内模式中，内存由该对象的引用obj和64bit的偏移量表示
+ * 在堆外模式下，内存直接通过64bit的地址进行寻址，obj=null
  */
 public class MemoryLocation {
 

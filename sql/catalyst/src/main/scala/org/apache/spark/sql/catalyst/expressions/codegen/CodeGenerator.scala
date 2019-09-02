@@ -29,7 +29,7 @@ import org.apache.spark.metrics.source.CodegenMetrics
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.expressions.codegen.Block._
-import org.apache.spark.sql.catalyst.expressions.vector.BatchExpression
+import org.apache.spark.sql.catalyst.expressions.vector.{BatchExpression, EquivalentBatchExpressions}
 import org.apache.spark.sql.catalyst.util.{ArrayData, GenericArrayData, MapData}
 import org.apache.spark.sql.catalyst.vector.{ColumnVector, OffColumnVector, OnColumnVector, RowBatch}
 import org.apache.spark.sql.internal.SQLConf
@@ -468,11 +468,16 @@ class CodegenContext {
     */
   val equivalentExpressions: EquivalentExpressions = new EquivalentExpressions
 
+  val equivalentBatchExpressions: EquivalentBatchExpressions = new EquivalentBatchExpressions
+
   // Foreach expression that is participating in subexpression elimination, the state to use.
   var subExprEliminationExprs = Map.empty[Expression, SubExprEliminationState]
 
   // Foreach expression that is participating in subexpression elimination, the state to use.
   val subBExprEliminationExprs = mutable.HashMap.empty[BatchExpression, SubBExprEliminationState]
+
+  // The collection of sub-exression result resetting methods that need to be called on each row.
+  val subExprResetVariables = mutable.ArrayBuffer.empty[String]
 
   // The collection of sub-expression result resetting methods that need to be called on each row.
   val subexprFunctions = mutable.ArrayBuffer.empty[String]
@@ -1171,6 +1176,77 @@ class CodegenContext {
   }
 
   /**
+    * Checks and sets up the state and codegen for subexpression elimination. This finds the
+    * common subexpresses, generates the functions that evaluate those expressions and populates
+    * the mapping of common subexpressions to the generated functions.
+    */
+  private def subBatchExpressionElimination(batchExprs: Seq[BatchExpression]) = {
+    // Add each expression tree and compute the common subexpressions.
+    batchExprs.foreach(equivalentBatchExpressions.addExprTree(_))
+
+    // Get all the exprs that appear at least twice and set up the state for subexpression
+    // elimination.
+    val commonExprs = equivalentBatchExpressions.getAllEquivalentExprs.filter(_.size > 1)
+    commonExprs.foreach(e => {
+      val expr = e.head
+      val value = freshName("value")
+      val fnName = freshName("evalExpr")
+
+      // Generate the code for this expression tree and wrap it in a function.
+      val code = expr.genCode(this)
+      val fn =
+        s"""
+           |private void $fnName(RowBatch $INPUT_ROWBATCH) {
+           |  ${code.code.trim}
+           |  $value = ${code.value};
+           |}
+           """.stripMargin
+
+      addNewFunction(fnName, fn)
+
+      // Add a state and a mapping of the common subexpressions that are associate with this
+      // state. Adding this expression to subExprEliminationExprMap means it will call `fn`
+      // when it is code generated. This decision should be a cost based one.
+      //
+      // The cost of doing subexpression elimination is:
+      //   1. Extra function call, although this is probably *good* as the JIT can decide to
+      //      inline or not.
+      //   2. Extra branch to check isLoaded. This branch is likely to be predicted correctly
+      //      very often. The reason it is not loaded is because of a prior branch.
+      //   3. Extra store into isLoaded.
+      // The benefit doing subexpression elimination is:
+      //   1. Running the expression logic. Even for a simple expression, it is likely more than 3
+      //      above.
+      //   2. Less code.
+      // Currently, we will do this for all non-leaf only expression trees (i.e. expr trees with
+      // at least two nodes) as the cost of doing it is expected to be low.
+      addMutableState("ColumnVector", value, v=>s"$v = null;")
+      subExprResetVariables += s"$fnName($INPUT_ROWBATCH);"
+      val state = SubBExprEliminationState(value)
+      e.foreach(subBExprEliminationExprs.put(_, state))
+    })
+  }
+
+  /**
+    * Generates code for expressions. If doSubexpressionElimination is true, subexpression
+    * elimination will be performed. Subexpression elimination assumes that the code will for each
+    * expression will be combined in the `expressions` order.
+    */
+  def generateBatchExpressions(
+                                expressions: Seq[BatchExpression],
+                                doSubexpressionElimination: Boolean = false,
+                                generateOffHeapColumnVector: Boolean = false): Seq[GeneratedBatchExpressionCode] = {
+    if (doSubexpressionElimination) subBatchExpressionElimination(expressions)
+    expressions.map { e =>
+      if (generateOffHeapColumnVector) {
+        e.generateOffHeapColumnVector = true
+      }
+      e.genCode(this)
+    }
+  }
+
+
+  /**
     * get a map of the pair of a place holder and a corresponding comment
     */
   def getPlaceHolderToComments(): collection.Map[String, String] = placeHolderToComments
@@ -1237,7 +1313,6 @@ class CodeAndComment(val body: String, val comment: collection.Map[String, Strin
   */
 abstract class CodeGenerator[InType <: AnyRef, OutType <: AnyRef] extends Logging {
 
-  protected val exprType: String = classOf[Expression].getName
   protected val mutableRowType: String = classOf[MutableRow].getName
   protected val genericMutableRowType: String = classOf[GenericMutableRow].getName
   /**
