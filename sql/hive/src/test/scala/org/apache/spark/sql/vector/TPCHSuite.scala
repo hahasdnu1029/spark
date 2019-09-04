@@ -43,7 +43,7 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       SQLConf.VECTORIZE_ENABLED.key -> "true",
       SQLConf.VECTORIZE_SHUFFLE_ENABLED.key->"true",
       SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
-      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "800") {
+      SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "1024") {
       import spark.sqlContext.implicits._
 
       val result =
@@ -52,19 +52,19 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
           .repartition(200, $"r")
 
       result.explain(true)
-      result.show(1000000, false)
+      result.show(1000, false)
     }
   }
 
   test("Sort") {
     withSQLConf(
-      SQLConf.VECTORIZE_ENABLED.key -> "false",
-      SQLConf.VECTORIZE_AGG_ENABLED.key -> "false",
-      SQLConf.VECTORIZE_SORT_ENABLED.key -> "false",
-      SQLConf.VECTORIZE_SHUFFLE_ENABLED.key -> "false",
-      SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "false",
-      SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "false",
-      SQLConf.VECTORIZE_BATCH_SORT_USE4.key -> "false",
+      SQLConf.VECTORIZE_ENABLED.key -> "true",
+      SQLConf.VECTORIZE_AGG_ENABLED.key -> "true",
+      SQLConf.VECTORIZE_SORT_ENABLED.key -> "true",
+      SQLConf.VECTORIZE_SHUFFLE_ENABLED.key -> "true",
+      SQLConf.VECTORIZE_BATCH_SORT_ENABLED.key -> "true",
+      SQLConf.VECTORIZE_BUFFERED_SHUFFLE_ENABLED.key -> "true",
+      SQLConf.VECTORIZE_BATCH_SORT_USE4.key -> "true",
       SQLConf.VECTORIZE_BATCH_CAPACITY.key -> "40960") {
       import spark.sqlContext.implicits._
 
@@ -75,7 +75,7 @@ class TPCHSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
       val sortColumnNames = (0 until 1).map(i => s"s_$i")
 
       val result =
-        spark.sqlContext.range(0, 1000000L, 1, 1)
+        spark.sqlContext.range(0, 10000000L, 1, 1)
           .select(sortColumns ++ otherColumns : _*)
           .sortWithinPartitions(sortColumnNames.head, sortColumnNames.tail : _*)
       result.explain(true)
